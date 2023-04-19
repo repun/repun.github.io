@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>MemoMemo</title>
+    <link>http://repun.github.io/</link>
+    <description>Recent content on MemoMemo</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>en-us</language>
+    <lastBuildDate>Wed, 19 Apr 2023 22:31:17 +0900</lastBuildDate><atom:link href="http://repun.github.io/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Post</title>
+      <link>http://repun.github.io/posts/post/</link>
+      <pubDate>Wed, 19 Apr 2023 22:31:17 +0900</pubDate>
+      
+      <guid>http://repun.github.io/posts/post/</guid>
+      <description>This is a test post
+$$1 + 2 = 3$$</description>
+    </item>
+    
+  </channel>
+</rss>
