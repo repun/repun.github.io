@@ -13,7 +13,9 @@
       <pubDate>Fri, 21 Apr 2023 09:52:08 +0900</pubDate>
       
       <guid>http://repun.github.io/posts/testpost/</guid>
-      <description>This is post for testing</description>
+      <description>This is a post for testing
+mathjax test below $$ 1 + 1 = \frac{4}{2} $$
+inline math: $ x \sim \mathcal{N}(0, 1) $</description>
     </item>
     
   </channel>
