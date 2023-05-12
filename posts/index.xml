@@ -5,7 +5,17 @@
     <link>http://repun.github.io/posts/</link>
     <description>Recent content in Posts on MemoBlog</description>
     <generator>Hugo -- gohugo.io</generator>
-    <lastBuildDate>Sun, 27 Feb 2022 09:52:08 +0900</lastBuildDate><atom:link href="http://repun.github.io/posts/index.xml" rel="self" type="application/rss+xml" />
+    <lastBuildDate>Tue, 24 May 2022 17:17:44 +0900</lastBuildDate><atom:link href="http://repun.github.io/posts/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>딥러닝의 Attention Mechanism</title>
+      <link>http://repun.github.io/posts/attention_mechanism/</link>
+      <pubDate>Tue, 24 May 2022 17:17:44 +0900</pubDate>
+      
+      <guid>http://repun.github.io/posts/attention_mechanism/</guid>
+      <description>이번 글에서는 딥러닝에서 사용되는 어텐션(Attention) 메커니즘에 대해 정리하려고 합니다. 우선 어텐션이 어떤 논리로 작동하는지에 대해 간단하게 정리할게요. 기본이 되는 논리를 정확하게 이해하고 있으면 다양하게 제안되어온 수많은 어텐션의 구조와 수식을 이해하는데에 문제가 없습니다. 어텐션의 기본 논리 이후에는 어텐션이 사용된 예시를 몇가지 확인하도록 하겠습니다.
+어텐션은 영단어의 뜻 그대로 집중이라는 의미입니다. 수많은 정보들 사이에서 내가 어떤 부분에 집중해야 하는가? 를 신경망으로 나타낸 구조라고 생각할 수 있어요. 신경망으로 집중을 나타낸다니 무슨 소리인지 감이 안올 수 있지만, 어텐션은 우리가 사전이나 데이터베이스에서 원하는 정보를 찾는 과정과 구조가 닮았습니다.</description>
+    </item>
+    
     <item>
       <title>Kernel K-Means 클러스터링의 원리</title>
       <link>http://repun.github.io/posts/kmeans_clustering/</link>

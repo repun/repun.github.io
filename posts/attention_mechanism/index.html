@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en" dir="auto">
+
+<head><meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="robots" content="index, follow">
+<title>딥러닝의 Attention Mechanism | MemoBlog</title>
+<meta name="keywords" content="">
+<meta name="description" content="이번 글에서는 딥러닝에서 사용되는 어텐션(Attention) 메커니즘에 대해 정리하려고 합니다. 우선 어텐션이 어떤 논리로 작동하는지에 대해 간단하게 정리할게요. 기본이 되는 논리를 정확하게 이해하고 있으면 다양하게 제안되어온 수많은 어텐션의 구조와 수식을 이해하는데에 문제가 없습니다. 어텐션의 기본 논리 이후에는 어텐션이 사용된 예시를 몇가지 확인하도록 하겠습니다.
+어텐션은 영단어의 뜻 그대로 집중이라는 의미입니다. 수많은 정보들 사이에서 내가 어떤 부분에 집중해야 하는가? 를 신경망으로 나타낸 구조라고 생각할 수 있어요. 신경망으로 집중을 나타낸다니 무슨 소리인지 감이 안올 수 있지만, 어텐션은 우리가 사전이나 데이터베이스에서 원하는 정보를 찾는 과정과 구조가 닮았습니다.">
+<meta name="author" content="">
+<link rel="canonical" href="http://repun.github.io/posts/attention_mechanism/">
+<link crossorigin="anonymous" href="/assets/css/stylesheet.9d4f844eaa4f78f307fe7b60e91f30525e084db78986cd1660839e63f5a041cb.css" integrity="sha256-nU&#43;ETqpPePMH/ntg6R8wUl4ITbeJhs0WYIOeY/WgQcs=" rel="preload stylesheet" as="style">
+<script defer crossorigin="anonymous" src="/assets/js/highlight.f413e19d0714851f6474e7ee9632408e58ac146fbdbe62747134bea2fa3415e0.js" integrity="sha256-9BPhnQcUhR9kdOfuljJAjlisFG&#43;9vmJ0cTS&#43;ovo0FeA="
+    onload="hljs.initHighlightingOnLoad();"></script>
+<link rel="icon" href="http://repun.github.io/favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="http://repun.github.io/favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="http://repun.github.io/favicon-32x32.png">
+<link rel="apple-touch-icon" href="http://repun.github.io/apple-touch-icon.png">
+<link rel="mask-icon" href="http://repun.github.io/safari-pinned-tab.svg">
+<meta name="theme-color" content="#2e2e33">
+<meta name="msapplication-TileColor" content="#2e2e33">
+<noscript>
+    <style>
+        #theme-toggle,
+        .top-link {
+            display: none;
+        }
+
+    </style>
+    <style>
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --theme: rgb(29, 30, 32);
+                --entry: rgb(46, 46, 51);
+                --primary: rgb(218, 218, 219);
+                --secondary: rgb(155, 156, 157);
+                --tertiary: rgb(65, 66, 68);
+                --content: rgb(196, 196, 197);
+                --hljs-bg: rgb(46, 46, 51);
+                --code-bg: rgb(55, 56, 62);
+                --border: rgb(51, 51, 51);
+            }
+
+            .list {
+                background: var(--theme);
+            }
+
+            .list:not(.dark)::-webkit-scrollbar-track {
+                background: 0 0;
+            }
+
+            .list:not(.dark)::-webkit-scrollbar-thumb {
+                border-color: var(--theme);
+            }
+        }
+
+    </style>
+</noscript><script>
+MathJax = {
+  tex: {
+    inlineMath: [['$', '$'], ['\\(', '\\)']]
+  }
+};
+</script>
+<script id="MathJax-script" async
+  src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
+</script>
+  <meta property="og:title" content="딥러닝의 Attention Mechanism" />
+<meta property="og:description" content="이번 글에서는 딥러닝에서 사용되는 어텐션(Attention) 메커니즘에 대해 정리하려고 합니다. 우선 어텐션이 어떤 논리로 작동하는지에 대해 간단하게 정리할게요. 기본이 되는 논리를 정확하게 이해하고 있으면 다양하게 제안되어온 수많은 어텐션의 구조와 수식을 이해하는데에 문제가 없습니다. 어텐션의 기본 논리 이후에는 어텐션이 사용된 예시를 몇가지 확인하도록 하겠습니다.
+어텐션은 영단어의 뜻 그대로 집중이라는 의미입니다. 수많은 정보들 사이에서 내가 어떤 부분에 집중해야 하는가? 를 신경망으로 나타낸 구조라고 생각할 수 있어요. 신경망으로 집중을 나타낸다니 무슨 소리인지 감이 안올 수 있지만, 어텐션은 우리가 사전이나 데이터베이스에서 원하는 정보를 찾는 과정과 구조가 닮았습니다." />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="http://repun.github.io/posts/attention_mechanism/" /><meta property="article:section" content="posts" />
+<meta property="article:published_time" content="2022-05-24T17:17:44+09:00" />
+<meta property="article:modified_time" content="2022-05-24T17:17:44+09:00" />
+
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="딥러닝의 Attention Mechanism"/>
+<meta name="twitter:description" content="이번 글에서는 딥러닝에서 사용되는 어텐션(Attention) 메커니즘에 대해 정리하려고 합니다. 우선 어텐션이 어떤 논리로 작동하는지에 대해 간단하게 정리할게요. 기본이 되는 논리를 정확하게 이해하고 있으면 다양하게 제안되어온 수많은 어텐션의 구조와 수식을 이해하는데에 문제가 없습니다. 어텐션의 기본 논리 이후에는 어텐션이 사용된 예시를 몇가지 확인하도록 하겠습니다.
+어텐션은 영단어의 뜻 그대로 집중이라는 의미입니다. 수많은 정보들 사이에서 내가 어떤 부분에 집중해야 하는가? 를 신경망으로 나타낸 구조라고 생각할 수 있어요. 신경망으로 집중을 나타낸다니 무슨 소리인지 감이 안올 수 있지만, 어텐션은 우리가 사전이나 데이터베이스에서 원하는 정보를 찾는 과정과 구조가 닮았습니다."/>
+
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position":  1 ,
+      "name": "Posts",
+      "item": "http://repun.github.io/posts/"
+    }, 
+    {
+      "@type": "ListItem",
+      "position":  2 ,
+      "name": "딥러닝의 Attention Mechanism",
+      "item": "http://repun.github.io/posts/attention_mechanism/"
+    }
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "딥러닝의 Attention Mechanism",
+  "name": "딥러닝의 Attention Mechanism",
+  "description": "이번 글에서는 딥러닝에서 사용되는 어텐션(Attention) 메커니즘에 대해 정리하려고 합니다. 우선 어텐션이 어떤 논리로 작동하는지에 대해 간단하게 정리할게요. 기본이 되는 논리를 정확하게 이해하고 있으면 다양하게 제안되어온 수많은 어텐션의 구조와 수식을 이해하는데에 문제가 없습니다. 어텐션의 기본 논리 이후에는 어텐션이 사용된 예시를 몇가지 확인하도록 하겠습니다.\n어텐션은 영단어의 뜻 그대로 집중이라는 의미입니다. 수많은 정보들 사이에서 내가 어떤 부분에 집중해야 하는가? 를 신경망으로 나타낸 구조라고 생각할 수 있어요. 신경망으로 집중을 나타낸다니 무슨 소리인지 감이 안올 수 있지만, 어텐션은 우리가 사전이나 데이터베이스에서 원하는 정보를 찾는 과정과 구조가 닮았습니다.",
+  "keywords": [
+    
+  ],
+  "articleBody": "이번 글에서는 딥러닝에서 사용되는 어텐션(Attention) 메커니즘에 대해 정리하려고 합니다. 우선 어텐션이 어떤 논리로 작동하는지에 대해 간단하게 정리할게요. 기본이 되는 논리를 정확하게 이해하고 있으면 다양하게 제안되어온 수많은 어텐션의 구조와 수식을 이해하는데에 문제가 없습니다. 어텐션의 기본 논리 이후에는 어텐션이 사용된 예시를 몇가지 확인하도록 하겠습니다.\n어텐션은 영단어의 뜻 그대로 집중이라는 의미입니다. 수많은 정보들 사이에서 내가 어떤 부분에 집중해야 하는가? 를 신경망으로 나타낸 구조라고 생각할 수 있어요. 신경망으로 집중을 나타낸다니 무슨 소리인지 감이 안올 수 있지만, 어텐션은 우리가 사전이나 데이터베이스에서 원하는 정보를 찾는 과정과 구조가 닮았습니다. 그래서 서로 비교하며 생각하면 논리를 쉽게 이해할 수 있습니다.\n1. Query, Key, Value 어텐션의 작동 구조는 쿼리(Query), 키(Key), 그리고 값(Value) 을 이용해 정보를 찾는 과정과 유사합니다. 그래서 자주 쿼리, 키, 값의 개념을 활용해 어텐션을 설명하곤 합니다. 우리도 이 개념을 이용해서 이해해 볼텐데, 우선 쿼리, 키, 값이 뭔지 살펴보겠습니다.\n첫번째 예시로 영어 사전에서 단어를 찾는 과정을 살펴보겠습니다. 영어 사전은 영어 단어와 그 뜻풀이가 서로 짝지어 정리되어 있는 책입니다. 우리는 영어 사전에서 의미가 궁금한 단어를 찾아 그 뜻을 볼 수 있습니다. mechanism이라는 영어 단어가 무슨 뜻인지 궁금하다고 합시다. 그러면 우리는 영어 사전에서 mechanism 단어를 찾을 수 있습니다. 그리고 해당 단어와 연결된 뜻풀이를 봅니다. 여기서 우리가 궁금한 mechanism이라는 단어는 쿼리 입니다. 그 다음 영어 사전에서 mechanism이라는 단어를 찾았지요. 이것이 키 입니다. 그리고 마지막으로 해당 단어의 뜻풀이를 확인했습니다. 이것이 값 이에요. 즉, 영어 사전에서 단어를 찾는 과정은, 쿼리 와 연관된 키 를 찾은 뒤 값 을 보는 것과 같습니다.\n다른 예시를 볼게요. 유튜브와 같은 동영상 사이트에서 원하는 동영상을 찾는다고 해봅시다. 검색창에 검색어를 입력하면 동영상 사이트의 서버에서는 해당 검색어와 연관있는 제목이나 태그를 찾습니다. 그리고 사용자에게 해당 제목, 테그와 연결되어있는 동영상을 반환합니다. 여기서는 우리가 검색한 검색어가 쿼리 가 됩니다. 그리고 쿼리와 연관된 제목, 태그가 키 가 되겠지요. 그리고 반환된 동영상이 값 이 됩니다. 아까와 영어 사전 예시와 마찬가지입니다. 쿼리 와 가장 연관된 키 를 찾은 뒤 값 을 반환했습니다.\n2. Attention Mechanism 자, 이제 다시 어텐션으로 돌아와 봅시다. 딥러닝의 어텐션 메커니즘도 예시로 들었던 정보 추출 과정과 비슷한 구조로 이해할 수 있습니다. 하지만 이번에는 쿼리, 키, 값 모두 벡터가 됩니다. 우리가 찾고싶은 쿼리 벡터 가 있을 때, 해당 쿼리 벡터와 가장 연관있는 키 벡터 를 찾은 뒤, 짝지어진 값 벡터 를 반환합니다. 간단하지요.\n살짝 더 발전시켜 볼게요. 쿼리와 연관되어있는 키를 찾는다고 했지요. 키가 쿼리와 연관되어있냐 그렇지 않느냐를 이분법적으로 생각하지 말고, 더 일반적으로 생각해 볼 수 있습니다. 어떤 키는 쿼리와 연관이 많이 되어있을 수도, 조금 연관 되어있을 수도, 아예 연관이 없을 수도 있습니다. 다시 말해, 각 키가 쿼리와 얼마나 연관되어있는지를 확률 분포로 생각할 수 있습니다. 예를 들어, 어떤 쿼리 $q$와 키 $k_1$의 연관도가 0.8이고, 키 $k_2$의 연관도가 0.2라면 $k_1$에 연결된 값 벡터인 $v_1$을 키 $k_2$에 연결된 $v_2$보다 많이 반환하는 것이 좋겠지요. 하지만 구체적으로 어떻게 많이 반환하는 것이 좋을까요?\n우선 생각해볼 수 있는건 확률에 따른 샘플링입니다. 위 예시에서는 80%의 확률로 $v_1$을 반환하고, 20%의 확률로 키 $v_2$를 반환할 수 있습니다. 쿼리와 키의 연관도만큼 키를 샘플링하여 거기에 연결된 값을 그대로 반환하는 것이지요. 이 방법을 Hard 어텐션이라고 합니다. 키와 연결된 값 벡터를 온전히 반환할 수는 있지만, 단점은 이 구조를 활용할 경우 학습이 복잡해집니다. 여러 샘플링 결과를 모아 몬테 카를로 방식으로 Gradient를 계산해주어야 하기 때문이지요.\n두번째 방법은 연관도에 따른 값의 가중 평균을 반환하는 방법입니다. 즉, $(0.8 \\times v_1) + (0.2 \\times v_2)$를 반환하는 거지요. 이걸 Soft 어텐션이라고 합니다. 이 방법은 Gradient 계산이 편리해지지만 값 벡터를 온전히 반환하지 못한다는 단점은 있습니다. 과연 값 벡터의 가중 평균이 우리가 원하는 제대로된 의미를 지닐 것인지가 애매하지요. 하지만 현재 많은 어텐션 메커니즘은 이 Soft 어텐션 방법을 주로 사용하고 있습니다. 그래서 이 글에서도 Soft 어텐션을 기준으로 설명할 거에요. Soft 어텐션의 구조에 대해서는 아래 그림을 이용해 좀 더 설명해보겠습니다.\nSoft Attention은 쿼리와 키 사이의 연관도를 고려한 값 벡터들의 가중 평균을 찾는다\r$\\alpha_{i}$는 쿼리 벡터와 $i$번째 키 벡터가 서로 얼마나 연관되어있는지를 나타내는 가중치 입니다. 가중치를 고려해서 값 벡터들의 가중 평균을 구한 뒤 반환하는 것을 알 수 있습니다. 위 그림에서 가중치가 높은 $v_{1}$과 $v_{4}$ 벡터는 최종 반환되는 벡터에 더 많이 반영되어있고, 반대로 가중치가 낮은 $v_{2}$나 $v_{3}$ 벡터는 조금 반영되어 있습니다. 이 구조를 이용해 여러 키 벡터들 중 연관도가 높은 벡터에 더 집중 하는 것으로 볼 수 있겠습니다.\n자, 연관도를 고려해 키를 반환하는 것은 위와 같은 방법을 사용한다고 합시다. 남은 것은 쿼리 벡터와 키 벡터들이 서로 얼마나 연관되어있는지 가중치 $\\alpha_{i}$를 구하는 일입니다. 사실 쿼리 벡터와 키 벡터 사이의 연관도를 어떻게 계산할지는 만들기 나름입니다. 그래서 다양한 방법들이 제안되어 왔지요. 예를 들면, 쿼리와 키 벡터 사이의 내적이 클 수록 연관이 높다고 볼 수도 있고, 혹은 Cosine Similarity를 이용해 계산할 수도 있고, 아니면 아예 쿼리와 키 벡터 사이의 연관도를 계산하는 작은 신경망을 만들어서 학습시킬 수도 있습니다. 수많은 방식들이 있기 때문에 이 글에서는 Dot-Product 어텐션이라고 불리는, 쿼리와 키 벡터 사이의 내적을 이용하는 방법만 예시 삼아 간단하게 살펴볼게요.\nDot-Product 어텐션에서는 쿼리 벡터와 키 벡터 사이의 내적을 구한 뒤, 확률의 형태로 만들어주기 위해 Softmax 함수를 통과시킵니다. 즉, 내적이 클 수록 연관이 많이 되어있고, 내적이 작을 수록 연관이 적게 되어있다고 보는 방법입니다.\n$$\\alpha_{i} = \\frac{\\exp{(q^{T} k_{i})}}{\\sum_{j}\\exp{(q^{T} k_{j})}}$$\n그리고 아까 살펴본대로 $\\alpha_{i}$가 높은 키 벡터가 쿼리 벡터와 연관이 많이 되어있으므로, 해당 위치의 값 벡터가 그만큼 많이 가중되어 반환됩니다. 이것이 어텐션 메커니즘의 기본 논리입니다. 쿼리 벡터와 키 벡터 사이의 연관도를 계산하고, 연관도에 따라 키 벡터들과 연결된 값 벡터들의 가중 평균을 반환합니다. 즉, 쿼리 벡터와 연관이 높은 키 벡터에 더 집중 하는 구조인 것이지요. 그럼 기본 논리를 이해했으니 이런 어텐션 매커니즘이 실재 신경망 모델에서 어떻게 사용되었는지 예시를 몇가지 살펴보겠습니다.\n3. Example1: Attention in Seq2Seq NMT 초기 어텐션 메커니즘은 RNN 기반의 Seq2Seq 모델을 이용한 NMT(Neural Machine Translation), 그러니까 번역기를 만드는 데에 자주 사용되었습니다. Seq2Seq 모델은 Encoder와 Decoder로 나누어진 구조를 가지는데, Encoder에 번역할 문장을 넣으면 Decoder에서 번역된 문장이 계산되는 식입니다. 예를 들어, 2-Layer Seq2Seq 모델이 “I am a robot\"이라는 영어 문장을 “나는 로봇입니다\"라는 한국어 문장으로 번역한다고 할게요. 아래 그림과 같은 구조로 작동하게 됩니다.\n2-Layer Seq2Seq NMT 모델의 구조 예시\rEncoder의 Hidden State 벡터를 $h$, Decoder의 Hidden State 벡터를 $s$로 표시했습니다. 위 그림에서 Encoder의 마지막 Hidden State, 즉, $h_6^{(1)}$과 $h_6^{(2)}$는 번역할 문장을 전부 거쳐서 나온 벡터이니 “I am a robot\"이라는 전체 문장의 정보를 담고 있을 것이라고 생각할 수 있습니다. 그래서 이 Hidden State 벡터를 Decoder RNN의 초기 Hidden State로 넣어 번역할 문장에 대한 정보를 전달해주는 것이지요. 이 벡터는 문맥을 담고 있다고 해서 Context Vector라고 부르기도 합니다.\n하지만 만약 번역하고 싶은 문장이 매우 길어진다면, 혹은 Hidden State의 차원이 작다면 Context Vector는 Encoder에서 처리한 모든 문장의 정보를 전부 담기 어려울 수도 있습니다. 문장 앞부분의 정보가 희석되거나 아니면 애초에 문장의 모든 정보를 표현하기에 벡터의 크기가 부족한 것이지요. 이 경우 Decoder에서 Context Vector를 전달받더라도 원래 번역하려던 문장이 뭐였는지 제대로 알기 힘드니 학습이 어렵습니다.\n이런 문제를 해결하기 위해 Seq2Seq 모델에 어텐션 메커니즘을 사용하는 방법이 제안되었습니다. 아래의 그림으로 구조를 볼게요.\n어텐션을 활용한 2-Layer Seq2Seq NMT 모델의 구조 예시\r위 예시는 Decoder에서 “로봇\"이라는 단어를 번역하는 장면을 나타낸 그림입니다. 나머지 번역된 단어들도 전부 같은 어텐션 방식으로 계산됩니다. 우리는 어텐션 메커니즘을 통해 번역할 때 원본 문장의 어느 부분에 집중해야 하는가? 를 나타내고 싶습니다. 즉, “나는” 뒤에 나올 단어를 번역하기 위해 원본 문장의 각 단어들 중 어디에 집중해야 하는지를 어텐션으로 나타낼 거에요.\n자, 아까 우리가 봤던 어텐션 메커니즘의 구조를 생각해볼게요. 쿼리 벡터와 가장 연관있는 키 벡터를 찾은 뒤, 짝지어진 값 벡터를 반환하는 구조였습니다. 이 예시에서의 쿼리 벡터는 이번에 번역할 단어(로봇)의 정보를 담고 있는 Decoder의 Hidden State 벡터, $s_3^{(2)}$가 됩니다. 키 벡터에는 원본 문장에서 각 단어들의 정보가 필요하니 Encoder의 각 Timestep에서 반환된 Hidden State 벡터들을 사용합니다. 위 그림의 $h_1^{(2)}, h_2^{(2)}, \\dots, h_6^{(2)}$에요. 값 벡터도 마찬가지로 원본 문장에서 각 단어들의 정보를 담고 있는 벡터인 $h_1^{(2)}, h_2^{(2)}, \\dots, h_6^{(2)}$를 그대로 사용합니다. 키 벡터와 값 벡터를 같은 벡터로 사용하는 것이지요. 모든 어텐션 메커니즘이 그래야 하는 것은 아니지만, 아무래도 키와 값 벡터는 서로 연관되어 있다 보니 같은 벡터를 쓰거나 비슷한 정보를 담고있는 벡터를 사용하는 경우가 많습니다.\n쿼리, 키, 값 벡터를 구분했으니 이후는 간단합니다. 쿼리 벡터인 $s_3^{(2)}$와 연관된 키 벡터를 $h_1^{(2)}, h_2^{(2)}, \\dots, h_6^{(2)}$ 중에서 찾고, 연관도에 따라 값 벡터들의 가중 평균을 계산해서 반환하면 됩니다. 쿼리와 키 벡터 사이의 연관도는 아까 봤던 Dot-Product 어텐션을 사용할 수도 있고, 다른 방식을 사용할 수도 있습니다. 위 예시에서는 반환된 가중 평균 값 벡터를 쿼리 벡터 $s_3^{(2)}$와 합쳐서 Fully-Connected Layer를 통과시켜 최종적으로 번역된 단어(로봇)를 생성합니다.\n4. Example2: Multi-Head Self-Attention in Transformer 다음 예시는 Transformer에 사용된 어텐션 메커니즘입니다. Transformer는 구글에서 제안한 Seq2Seq 모델로, RNN을 사용하지 않고 어텐션만으로 Sequential 데이터를 처리하도록 제안된 신경망 구조입니다. 자연어 처리, 컴퓨터 비젼 등 많은 영역에서 이 Transformer가 사용되고 있습니다. 여기서 사용된 어텐션 메커니즘은 Multi-Head Self-Attention이라고 합니다. 이름이 복잡한데 뜻인지 하나씩 살펴보도록 하겠습니다.\n우선 Self-Attention이 무슨 뜻인지부터 보겠습니다. 위의 번역기 예시에서 보았듯이 어텐션의 쿼리, 키, 값 벡터 중 키와 값 벡터는 서로 연관되어 있는 경우가 많이 있습니다. 그도 그럴게 키와 값 벡터는 마치 사전의 단어와 뜻풀이처럼 서로 짝지어져 정리되어있는 것으로 생각할 수 있는데, 아무 연관도 없는 단어와 뜻풀이를 짝짓는건 이상하잖아요. 그래서 서로 연관된 정보를 담고 있거나, 위의 번역기 예시처럼 아예 동일한 벡터를 사용하기도 합니다. Self-Attention은 여기에 더불어 쿼리 벡터까지 서로 같은 정보를 가지고 연관되어 있는 어텐션을 말합니다. 쿼리와 연관된 키를 찾는데 그 쿼리와 키가 서로 같은 정보를 가지고 있다니, 마치 자기 자신을 알기 위해 자신에게 집중하는 것과 비슷하지요. 그래서 Self-Attention입니다. 아래 그림으로 살펴볼게요.\nTransformer의 Self-Attention은 쿼리, 키, 값 벡터가 동일한 인풋에서 계산된다\r위 그림을 보면 $x_1$이라는 하나의 인풋 벡터에 $W_q$, $W_k$, $W_v$ 행렬을 곱해서 $q_1$, $k_1$, $v_1$이라는 쿼리, 키, 값 벡터로 변환된 모습이 나와있습니다. 물론 서로 다른 행렬을 곱했기 때문에 $q_1$, $k_1$, $v_1$은 서로 완전히 똑같은 벡터는 아니지만, 같은 인풋 벡터로부터 왔기 때문에 서로 연관된 정보를 담고있다고 볼 수 있습니다.\n똑같은 방식으로 $x_2$ 인풋에 대해서도 $q_2$, $k_2$, $v_2$ 벡터를 만들 수 있습니다. 그리고 이 쿼리, 키, 값 벡터들을 이용해 여태까지와 마찬가지로 어텐션을 계산하면 됩니다. 쿼리 벡터와 키 벡터들 사이의 연관도 $\\alpha$를 계산한 뒤, 가중치에 맞게 값 벡터의 가중 평균을 반환합니다. 위 그림에서는 첫번째 쿼리 $q_1$에 대해서 어텐션을 계산하는 모습이 나타나있지만, 당연히 $q_2$에 대해서도 같은 방식으로 계산해줄 수 있습니다.\n원본 논문에서는 연관도 $\\alpha$를 계산하기 위해 Scaled Dot-Product 어텐션이라는 방법을 제안했습니다. 우리가 위에서 예시로 봤던 Dot-Product 어텐션과 거의 유사합니다.\n$$\\alpha_{i} = \\frac{\\exp{(q^{T} k_{i} / \\sqrt{d_k})}}{\\sum_{j}\\exp{(q^{T} k_{j} / \\sqrt{d_k})}}$$\n쿼리와 키의 내적을 $\\sqrt{d_k}$로 나눠준다는 것 이외에는 Dot-Product 어텐션과 똑같습니다. $d_k$는 쿼리, 키 벡터의 차원 크기입니다. 쿼리, 키 벡터의 차원 크기만큼 Scaling을 해줬으니 이름이 Scaled Dot-Product 어텐션이에요. 쿼리, 키 벡터의 차원이 너무 크다면 두 벡터의 내적값이 커지고, 그럼 결국 Softmax 함수를 통과할 때에 값이 지나치게 크거나 작아져서 Gradient가 제대로 전달되지 않는 문제를 방지하기 위해 $\\sqrt{d_k}$로 나눠준다고 원본 논문에서 설명하고 있습니다.\n※ 쿼리, 키 벡터는 서로 내적을 해야하기 때문에 차원이 $d_k$로 서로 같아야 합니다. 하지만 값 벡터는 값 벡터들끼리의 가중평균만 계산하면 되기 때문에 굳이 차원이 $d_k$로 같은 필요는 없습니다.\n우리는 지금 벡터 형태로 Selt-Attention의 계산 과정을 살펴보았지만 원본 논문에서는 행렬식으로 설명을 해두었습니다. 똑같은 내용인데 행렬식으로 간결하게 표현한 것 뿐입니다. 수식은 아래와 같아요.\n$$\\text{Attention}(Q, K, V) = \\text{softmax}\\left( \\frac{QK^T}{\\sqrt{d^{k}}} \\right)V$$\n행렬 형태의 그림은 아래와 같습니다.\nSelf-Attention 계산의 행렬 구조\rSelf-Attention에 대해 알아보았으니 이번엔 Multi-Head가 무슨 뜻인지 볼게요. 아까 우리는 인풋 벡터 $x$에 행렬 $W_q$, $W_k$, $W_v$를 곱해서 쿼리 벡터 $q$와 키 벡터 $k$와 값 벡터 $v$를 하나씩 만들었습니다. 하지만 만약 행렬 $W_q$를 두개 만든다면 어떻게 될까요? 즉, $W_q^{(1)}$과 $W_q^{(2)}$ 두개의 행렬이 생기는 겁니다. 그러면 하나의 인풋 벡터로 쿼리 벡터를 두개 만들 수 있겠지요. 같은 방법으로 키와 값 벡터도 두개씩 만들 수 있습니다. $W_q$, $W_k$, $W_v$ 행렬을 $n$개씩 만든다면? 하나의 인풋 벡터로 $n$개의 쿼리, 키, 값 벡터를 만들어낼 수 있겠지요. 하나의 인풋 벡터로 여러개의 쿼리, 키, 값 벡터를 만드는 게 마치 머리가 여러개 있다고 하여 Multi-Head입니다. 행렬 형태로 계산되는 그림을 한번 볼게요.\nSelf-Attention 구조를 동시에 여러개 개산할 수 있다\r하나의 인풋 Matrix로 여러개의 Self-Attention 결과를 계산할 수 있습니다. 이 결과들을 전부 이어붙인 뒤 Fully-Connected Layer를 통과시켜서 원래의 output과 같은 크기를 만들어줄 수 있지요. 이 전체 구조가 바로 Multi-Head Self-Attention입니다. 쿼리, 키, 값 벡터가 서로 연관된 정보를 담고 있는 Self-Attention, 거기에 동시에 여러 개의 쿼리, 키, 값 벡터를 생성해서 연산하는 Multi-Head 구조를 살펴보았습니다. Transformer는 이 구조를 활용하여 RNN 없이 Sequential 데이터를 처리할 수 있도록 제안되었습니다.\n5. Example3: Bottelneck Attention Module for CNN 이번 예시는 이미지를 처리할 때 사용되는 어텐션 구조입니다. BAM(Bottleneck Attention Module) 이라는 신경망 구조는 이미지의 채널과 공간 정보를 이용해 쿼리와 키 사이의 유사도를 계산합니다. 이 어텐션 구조에서 쿼리 벡터는 이미지입니다. 조금 더 정확하게는 Convolution Layer을 통과해서 나온 가로 $W$, 세로 $H$, 채널 $C$의 피처맵 $F$입니다. 그리고 이 쿼리와 연관도를 계산할 키 벡터 역시 동일한 피처맵 벡터 $F$입니다. 그리고 값 벡터 역시 피처맵 백터 $F$가 되겠습니다. 아까 봤던 Self-Attention 개념입니다. BAM은 쿼리와 키 벡터 간의 연관도를 계산하기 위해 신경망 구조를 사용합니다. 즉, 학습된 신경망 모델에 쿼리이자 키인 피처맵 $F$를 통과시켜 연관도 $M(F)$를 계산하는 방식이에요. 어떤 신경망 구조를 이용해 연관도를 계산하는지 살펴볼게요.\nBAM에서는 우선 피처맵 $F$의 채널 정보를 반영할 수 있는 Channel-Attention이라는 구조를 사용했습니다. 아래와 같은 신경망 모델이에요.\n$$M_{c}(F) = \\text{BN}(\\text{MLP}(\\text{AvgPool}(F)))$$\n피처맵 $F$의 공간 정보를 Average Pooling을 이용해 하나로 합친 뒤 MLP 모델과 Batch Normalization을 통과시키는 방식입니다. 위 신경망 모델이 학습되면 이 구조를 통해 $F$에서 유용한 채널 정보를 뽑아낼 수 있겠지요. 피처맵 $F$는 Average Pooling을 통해 $C \\times H \\times W$에서 $C \\times 1 \\times 1$로 모양이 바뀝니다. MLP와 BN에서는 벡터의 크기를 유지시켜 최종적으로 $M_{c}(F)$는 $C \\times 1 \\times 1$ 모양이 됩니다.\n이렇게 계산된 Channel-Attention에 더불어 BAM에서는 이미지의 공간 정보를 반영하기 위한 Spatial-Attention이라는 아래 구조를 사용했습니다.\n$$M_{s}(F) = \\text{BN}(f_{3}^{1\\times1}(f_{2}^{3\\times3}(f_{1}^{3\\times3}(f_{0}^{1\\times1}(F)))))$$\n$f$는 Convolution Layer입니다. 그리고 위에 첨자로 붙은 것이 필터의 크기입니다. 피처맵 $F$는 $f_{0}^{1\\times1}$를 통과하면서 Channel 정보가 압축됩니다. $f_{1}^{3\\times3}$과 $f_{2}^{3\\times3}$에서는 Dilated Convoluation을 사용해 피처맵의 크기를 유지하면서 공간 정보를 추출한 뒤 최종적으로 $f_{3}^{1\\times1}$를 통과하면서 모양은 $1 \\times H \\times W$가 됩니다.\nChannel-Attention과 Spatial-Attention을 구했으면 두 벡터를 이용해 최종 연관도 $M(F)$를 아래와 같이 계산합니다.\n$$M(F) = \\sigma(M_{c}(F) + M_{s}(F))$$\n$M_{c}(F)$와 $M_{s}(F)$는 $C \\times H \\times W$ 모양으로 변환하여 모양을 서로 맞춰준 뒤 더해줍니다. 그리고 Sigmoid 함수를 통과시켜 최종적으로 피처맵 $F$의 연관도 $M(F)$가 계산되지요. 뭔가 복잡하게 설명했지만, 결국 신경망을 이용해 쿼리이자 키인 피처맵 백터 $F$의 연관도를 계산한다는 이야기였습니다. 그리고 BAM은 최종적으로 이 연관도를 고려하여 키 벡터를 반환하게 되지요. 아래와 같은 수식을 사용합니다.\n$$F + M(F) \\circ F$$\n$\\circ$은 Element-wise 곱셈입니다. 연관도 $M(F)$와 키 벡터 $F$는 서로 모양이 같으니 그대로 곱해줄 수 있어요. $F$를 추가로 더해주는 이유는 원 논문에서 Residual Network 구조를 활용해 학습에 도움을 주기 위해서라고 설명합니다. 이렇게 반환된 벡터는 피처맵 벡터 $F$에서 공간, 채널 정보를 고려해 필요한 부분에 집중한 새로운 피처맵 벡터가 되는 것이지요.\n6. 마무리 여기까지 해서 딥러닝에 사용되는 어텐션 메커니즘의 구조와 예시를 살펴보았습니다. 여러 가지 다양한 어텐션 방법들이 제안되었지만, 기본적으로는 쿼리 벡터와 연관된 키 벡터를 찾고, 연결된 값 벡터를 반환한다는 구조로 이해할 수 있습니다. 예시로 들었던 내용들은 사실 어텐션 구조에 초점을 맞추느라 많은 내용들을 생략했어요. 직접 구현이 필요하거나 더 자세한 내용을 알고싶다면 아래 참고자료의 원 논문들을 보면 좋습니다. 어텐션 구조는 학습했을 때의 성능도 물론 강력하지만, 쿼리와 키 사이의 연관도를 직접 뜯어보고 현재 신경망이 어디에 집중하고 있는지 직관적으로 알 수 있습니다. 즉, 학습된 신경망이 무슨 짓을 하고있는 건지 대충이나마 시각적으로 나타낼 수 있다는 것이지요. 내부 계산 로직을 알기 힘든 신경망 모델에서 이 점은 꽤 장점이 되기도 합니다. 어텐션 구조는 점점 더 많은 곳에 사용되고 있기 때문에 기본적인 원리와 구조를 이해해 두는 것은 중요합니다. 앞으로 제안될 수많은 어텐션 모델들의 구조를 이해하는 데에 이 내용이 도움이 되면 좋겠습니다.\n참고 자료 Vaswani et al. “Attention Is All You Need” Luong et al. “Effective Approaches to Attention-based Neural Machine Translation” Xu et al. “Show, Attend and Tell: Neural Image Caption Generation with Visual Attention” Jay Alammar “The Illustrated Transformer” cchyun “Transformer (Attention Is All You Need) 구현하기” Park et al. “BAM: Bottleneck Attention Module” ",
+  "wordCount" : "2427",
+  "inLanguage": "en",
+  "datePublished": "2022-05-24T17:17:44+09:00",
+  "dateModified": "2022-05-24T17:17:44+09:00",
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "http://repun.github.io/posts/attention_mechanism/"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "MemoBlog",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "http://repun.github.io/favicon.ico"
+    }
+  }
+}
+</script>
+</head>
+
+<body class="" id="top">
+<script>
+    if (localStorage.getItem("pref-theme") === "dark") {
+        document.body.classList.add('dark');
+    } else if (localStorage.getItem("pref-theme") === "light") {
+        document.body.classList.remove('dark')
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.body.classList.add('dark');
+    }
+
+</script>
+
+<header class="header">
+    <nav class="nav">
+        <div class="logo">
+            <a href="http://repun.github.io/" accesskey="h" title="MemoBlog (Alt + H)">MemoBlog</a>
+            <div class="logo-switches">
+                <button id="theme-toggle" accesskey="t" title="(Alt + T)">
+                    <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <ul id="menu">
+        </ul>
+    </nav>
+</header>
+<main class="main">
+
+<article class="post-single">
+  <header class="post-header">
+    
+    <h1 class="post-title">
+      딥러닝의 Attention Mechanism
+    </h1>
+    <div class="post-meta"><span title='2022-05-24 17:17:44 +0900 KST'>May 24, 2022</span>
+
+</div>
+  </header> <div class="toc">
+    <details >
+        <summary accesskey="c" title="(Alt + C)">
+            <span class="details">Table of Contents</span>
+        </summary>
+
+        <div class="inner"><ul>
+                <li>
+                    <a href="#1-query-key-value" aria-label="1. Query, Key, Value">1. Query, Key, Value</a></li>
+                <li>
+                    <a href="#2-attention-mechanism" aria-label="2. Attention Mechanism">2. Attention Mechanism</a></li>
+                <li>
+                    <a href="#3-example1-attention-in-seq2seq-nmt" aria-label="3. Example1: Attention in Seq2Seq NMT">3. Example1: Attention in Seq2Seq NMT</a></li>
+                <li>
+                    <a href="#4-example2-multi-head-self-attention-in-transformer" aria-label="4. Example2: Multi-Head Self-Attention in Transformer">4. Example2: Multi-Head Self-Attention in Transformer</a></li>
+                <li>
+                    <a href="#5-example3-bottelneck-attention-module-for-cnn" aria-label="5. Example3: Bottelneck Attention Module for CNN">5. Example3: Bottelneck Attention Module for CNN</a></li>
+                <li>
+                    <a href="#6-%eb%a7%88%eb%ac%b4%eb%a6%ac" aria-label="6. 마무리">6. 마무리</a></li>
+                <li>
+                    <a href="#%ec%b0%b8%ea%b3%a0-%ec%9e%90%eb%a3%8c" aria-label="참고 자료">참고 자료</a>
+                </li>
+            </ul>
+        </div>
+    </details>
+</div>
+
+  <div class="post-content"><p>이번 글에서는 딥러닝에서 사용되는 어텐션(Attention) 메커니즘에 대해 정리하려고 합니다. 우선 어텐션이 어떤 논리로 작동하는지에 대해 간단하게 정리할게요. 기본이 되는 논리를 정확하게 이해하고 있으면 다양하게 제안되어온 수많은 어텐션의 구조와 수식을 이해하는데에 문제가 없습니다. 어텐션의 기본 논리 이후에는 어텐션이 사용된 예시를 몇가지 확인하도록 하겠습니다.</p>
+<p>어텐션은 영단어의 뜻 그대로 집중이라는 의미입니다. <strong>수많은 정보들 사이에서 내가 어떤 부분에 집중해야 하는가?</strong> 를 신경망으로 나타낸 구조라고 생각할 수 있어요. 신경망으로 집중을 나타낸다니 무슨 소리인지 감이 안올 수 있지만, 어텐션은 우리가 사전이나 데이터베이스에서 원하는 정보를 찾는 과정과 구조가 닮았습니다. 그래서 서로 비교하며 생각하면 논리를 쉽게 이해할 수 있습니다.</p>
+<h3 id="1-query-key-value">1. Query, Key, Value<a hidden class="anchor" aria-hidden="true" href="#1-query-key-value">#</a></h3>
+<p>어텐션의 작동 구조는 <strong>쿼리(Query)</strong>, <strong>키(Key)</strong>, 그리고 <strong>값(Value)</strong> 을 이용해 정보를 찾는 과정과 유사합니다. 그래서 자주 쿼리, 키, 값의 개념을 활용해 어텐션을 설명하곤 합니다. 우리도 이 개념을 이용해서 이해해 볼텐데, 우선 쿼리, 키, 값이 뭔지 살펴보겠습니다.</p>
+<p>첫번째 예시로 영어 사전에서 단어를 찾는 과정을 살펴보겠습니다. 영어 사전은 영어 단어와 그 뜻풀이가 서로 짝지어 정리되어 있는 책입니다. 우리는 영어 사전에서 의미가 궁금한 단어를 찾아 그 뜻을 볼 수 있습니다. <code>mechanism</code>이라는 영어 단어가 무슨 뜻인지 궁금하다고 합시다. 그러면 우리는 영어 사전에서 <code>mechanism</code> 단어를 찾을 수 있습니다. 그리고 해당 단어와 연결된 뜻풀이를 봅니다. 여기서 우리가 궁금한 <code>mechanism</code>이라는 단어는 <strong>쿼리</strong> 입니다. 그 다음 영어 사전에서 <code>mechanism</code>이라는 단어를 찾았지요. 이것이 <strong>키</strong> 입니다. 그리고 마지막으로 해당 단어의 뜻풀이를 확인했습니다. 이것이 <strong>값</strong> 이에요. 즉, 영어 사전에서 단어를 찾는 과정은, <strong>쿼리</strong> 와 연관된 <strong>키</strong> 를 찾은 뒤 <strong>값</strong> 을 보는 것과 같습니다.</p>
+<p>다른 예시를 볼게요. 유튜브와 같은 동영상 사이트에서 원하는 동영상을 찾는다고 해봅시다. 검색창에 검색어를 입력하면 동영상 사이트의 서버에서는 해당 검색어와 연관있는 제목이나 태그를 찾습니다. 그리고 사용자에게 해당 제목, 테그와 연결되어있는 동영상을 반환합니다. 여기서는 우리가 검색한 검색어가 <strong>쿼리</strong> 가 됩니다. 그리고 쿼리와 연관된 제목, 태그가 <strong>키</strong> 가 되겠지요. 그리고 반환된 동영상이 <strong>값</strong> 이 됩니다. 아까와 영어 사전 예시와 마찬가지입니다. <strong>쿼리</strong> 와 가장 연관된 <strong>키</strong> 를 찾은 뒤 <strong>값</strong> 을 반환했습니다.</p>
+<h3 id="2-attention-mechanism">2. Attention Mechanism<a hidden class="anchor" aria-hidden="true" href="#2-attention-mechanism">#</a></h3>
+<p>자, 이제 다시 어텐션으로 돌아와 봅시다. 딥러닝의 어텐션 메커니즘도 예시로 들었던 정보 추출 과정과 비슷한 구조로 이해할 수 있습니다. 하지만 이번에는 쿼리, 키, 값 모두 벡터가 됩니다. 우리가 찾고싶은 <strong>쿼리 벡터</strong> 가 있을 때, 해당 쿼리 벡터와 가장 연관있는 <strong>키 벡터</strong> 를 찾은 뒤, 짝지어진 <strong>값 벡터</strong> 를 반환합니다. 간단하지요.</p>
+<p>살짝 더 발전시켜 볼게요. 쿼리와 연관되어있는 키를 찾는다고 했지요. 키가 쿼리와 연관되어있냐 그렇지 않느냐를 이분법적으로 생각하지 말고, 더 일반적으로 생각해 볼 수 있습니다. 어떤 키는 쿼리와 연관이 많이 되어있을 수도, 조금 연관 되어있을 수도, 아예 연관이 없을 수도 있습니다. 다시 말해, 각 키가 쿼리와 얼마나 연관되어있는지를 확률 분포로 생각할 수 있습니다. 예를 들어, 어떤 쿼리 $q$와 키 $k_1$의 연관도가 0.8이고, 키 $k_2$의 연관도가 0.2라면 $k_1$에 연결된 값 벡터인 $v_1$을 키 $k_2$에 연결된 $v_2$보다 많이 반환하는 것이 좋겠지요. 하지만 구체적으로 어떻게 많이 반환하는 것이 좋을까요?</p>
+<p>우선 생각해볼 수 있는건 확률에 따른 샘플링입니다. 위 예시에서는 80%의 확률로 $v_1$을 반환하고, 20%의 확률로 키 $v_2$를 반환할 수 있습니다. 쿼리와 키의 연관도만큼 키를 샘플링하여 거기에 연결된 값을 그대로 반환하는 것이지요. 이 방법을 Hard 어텐션이라고 합니다. 키와 연결된 값 벡터를 온전히 반환할 수는 있지만, 단점은 이 구조를 활용할 경우 학습이 복잡해집니다. 여러 샘플링 결과를 모아 몬테 카를로 방식으로 Gradient를 계산해주어야 하기 때문이지요.</p>
+<p>두번째 방법은 연관도에 따른 값의 가중 평균을 반환하는 방법입니다. 즉, $(0.8 \times v_1) + (0.2 \times v_2)$를 반환하는 거지요. 이걸 Soft 어텐션이라고 합니다. 이 방법은 Gradient 계산이 편리해지지만 값 벡터를 온전히 반환하지 못한다는 단점은 있습니다. 과연 값 벡터의 가중 평균이 우리가 원하는 제대로된 의미를 지닐 것인지가 애매하지요. 하지만 현재 많은 어텐션 메커니즘은 이 Soft 어텐션 방법을 주로 사용하고 있습니다. 그래서 이 글에서도 Soft 어텐션을 기준으로 설명할 거에요. Soft 어텐션의 구조에 대해서는 아래 그림을 이용해 좀 더 설명해보겠습니다.</p>
+<p>
+
+<figure>
+  <img src="/posts/images/soft_attention.png" alt="soft_attention.png" loading="lazy" />
+  <figcaption style="text-align: center; color: gray">Soft Attention은 쿼리와 키 사이의 연관도를 고려한 값 벡터들의 가중 평균을 찾는다</figcaption>
+</figure>
+</p>
+<p>$\alpha_{i}$는 쿼리 벡터와 $i$번째 키 벡터가 서로 얼마나 연관되어있는지를 나타내는 가중치 입니다. 가중치를 고려해서 값 벡터들의 가중 평균을 구한 뒤 반환하는 것을 알 수 있습니다. 위 그림에서 가중치가 높은 $v_{1}$과 $v_{4}$ 벡터는 최종 반환되는 벡터에 더 많이 반영되어있고, 반대로 가중치가 낮은 $v_{2}$나 $v_{3}$ 벡터는 조금 반영되어 있습니다. 이 구조를 이용해 여러 키 벡터들 중 연관도가 높은 벡터에 더 <strong>집중</strong> 하는 것으로 볼 수 있겠습니다.</p>
+<p>자, 연관도를 고려해 키를 반환하는 것은 위와 같은 방법을 사용한다고 합시다. 남은 것은 쿼리 벡터와 키 벡터들이 서로 얼마나 연관되어있는지 가중치 $\alpha_{i}$를 구하는 일입니다. 사실 쿼리 벡터와 키 벡터 사이의 연관도를 어떻게 계산할지는 만들기 나름입니다. 그래서 다양한 방법들이 제안되어 왔지요. 예를 들면, 쿼리와 키 벡터 사이의 내적이 클 수록 연관이 높다고 볼 수도 있고, 혹은 Cosine Similarity를 이용해 계산할 수도 있고, 아니면 아예 쿼리와 키 벡터 사이의 연관도를 계산하는 작은 신경망을 만들어서 학습시킬 수도 있습니다. 수많은 방식들이 있기 때문에 이 글에서는 Dot-Product 어텐션이라고 불리는, 쿼리와 키 벡터 사이의 내적을 이용하는 방법만 예시 삼아 간단하게 살펴볼게요.</p>
+<p>Dot-Product 어텐션에서는 쿼리 벡터와 키 벡터 사이의 내적을 구한 뒤, 확률의 형태로 만들어주기 위해 Softmax 함수를 통과시킵니다. 즉, 내적이 클 수록 연관이 많이 되어있고, 내적이 작을 수록 연관이 적게 되어있다고 보는 방법입니다.</p>
+<p>$$\alpha_{i} = \frac{\exp{(q^{T} k_{i})}}{\sum_{j}\exp{(q^{T} k_{j})}}$$</p>
+<p>그리고 아까 살펴본대로 $\alpha_{i}$가 높은 키 벡터가 쿼리 벡터와 연관이 많이 되어있으므로, 해당 위치의 값 벡터가 그만큼 많이 가중되어 반환됩니다. 이것이 어텐션 메커니즘의 기본 논리입니다. 쿼리 벡터와 키 벡터 사이의 연관도를 계산하고, 연관도에 따라 키 벡터들과 연결된 값 벡터들의 가중 평균을 반환합니다. 즉, 쿼리 벡터와 연관이 높은 키 벡터에 더 <strong>집중</strong> 하는 구조인 것이지요. 그럼 기본 논리를 이해했으니 이런 어텐션 매커니즘이 실재 신경망 모델에서 어떻게 사용되었는지 예시를 몇가지 살펴보겠습니다.</p>
+<h3 id="3-example1-attention-in-seq2seq-nmt">3. Example1: Attention in Seq2Seq NMT<a hidden class="anchor" aria-hidden="true" href="#3-example1-attention-in-seq2seq-nmt">#</a></h3>
+<p>초기 어텐션 메커니즘은 RNN 기반의 Seq2Seq 모델을 이용한 NMT(Neural Machine Translation), 그러니까 번역기를 만드는 데에 자주 사용되었습니다. Seq2Seq 모델은 Encoder와 Decoder로 나누어진 구조를 가지는데, Encoder에 번역할 문장을 넣으면 Decoder에서 번역된 문장이 계산되는 식입니다. 예를 들어, 2-Layer Seq2Seq 모델이 &ldquo;I am a robot&quot;이라는 영어 문장을 &ldquo;나는 로봇입니다&quot;라는 한국어 문장으로 번역한다고 할게요. 아래 그림과 같은 구조로 작동하게 됩니다.</p>
+<p>
+
+<figure>
+  <img src="/posts/images/2layer_seq2seq.png" alt="2layer_seq2seq.png" loading="lazy" />
+  <figcaption style="text-align: center; color: gray">2-Layer Seq2Seq NMT 모델의 구조 예시</figcaption>
+</figure>
+</p>
+<p>Encoder의 Hidden State 벡터를 $h$, Decoder의 Hidden State 벡터를 $s$로 표시했습니다. 위 그림에서 Encoder의 마지막 Hidden State, 즉, $h_6^{(1)}$과 $h_6^{(2)}$는 번역할 문장을 전부 거쳐서 나온 벡터이니 &ldquo;I am a robot&quot;이라는 전체 문장의 정보를 담고 있을 것이라고 생각할 수 있습니다. 그래서 이 Hidden State 벡터를 Decoder RNN의 초기 Hidden State로 넣어 번역할 문장에 대한 정보를 전달해주는 것이지요. 이 벡터는 문맥을 담고 있다고 해서 Context Vector라고 부르기도 합니다.</p>
+<p>하지만 만약 번역하고 싶은 문장이 매우 길어진다면, 혹은 Hidden State의 차원이 작다면 Context Vector는 Encoder에서 처리한 모든 문장의 정보를 전부 담기 어려울 수도 있습니다. 문장 앞부분의 정보가 희석되거나 아니면 애초에 문장의 모든 정보를 표현하기에 벡터의 크기가 부족한 것이지요. 이 경우 Decoder에서 Context Vector를 전달받더라도 원래 번역하려던 문장이 뭐였는지 제대로 알기 힘드니 학습이 어렵습니다.</p>
+<p>이런 문제를 해결하기 위해 Seq2Seq 모델에 어텐션 메커니즘을 사용하는 방법이 제안되었습니다. 아래의 그림으로 구조를 볼게요.</p>
+<p>
+
+<figure>
+  <img src="/posts/images/attention_seq2seq.png" alt="attention_seq2seq.png" loading="lazy" />
+  <figcaption style="text-align: center; color: gray">어텐션을 활용한 2-Layer Seq2Seq NMT 모델의 구조 예시</figcaption>
+</figure>
+</p>
+<p>위 예시는 Decoder에서 &ldquo;로봇&quot;이라는 단어를 번역하는 장면을 나타낸 그림입니다. 나머지 번역된 단어들도 전부 같은 어텐션 방식으로 계산됩니다. 우리는 어텐션 메커니즘을 통해 <strong>번역할 때 원본 문장의 어느 부분에 집중해야 하는가?</strong> 를 나타내고 싶습니다. 즉, &ldquo;나는&rdquo; 뒤에 나올 단어를 번역하기 위해 원본 문장의 각 단어들 중 어디에 집중해야 하는지를 어텐션으로 나타낼 거에요.</p>
+<p>자, 아까 우리가 봤던 어텐션 메커니즘의 구조를 생각해볼게요. 쿼리 벡터와 가장 연관있는 키 벡터를 찾은 뒤, 짝지어진 값 벡터를 반환하는 구조였습니다. 이 예시에서의 쿼리 벡터는 이번에 번역할 단어(로봇)의 정보를 담고 있는 Decoder의 Hidden State 벡터, $s_3^{(2)}$가 됩니다. 키 벡터에는 원본 문장에서 각 단어들의 정보가 필요하니 Encoder의 각 Timestep에서 반환된 Hidden State 벡터들을 사용합니다. 위 그림의 $h_1^{(2)}, h_2^{(2)}, \dots, h_6^{(2)}$에요. 값 벡터도 마찬가지로 원본 문장에서 각 단어들의 정보를 담고 있는 벡터인 $h_1^{(2)}, h_2^{(2)}, \dots, h_6^{(2)}$를 그대로 사용합니다. 키 벡터와 값 벡터를 같은 벡터로 사용하는 것이지요. 모든 어텐션 메커니즘이 그래야 하는 것은 아니지만, 아무래도 키와 값 벡터는 서로 연관되어 있다 보니 같은 벡터를 쓰거나 비슷한 정보를 담고있는 벡터를 사용하는 경우가 많습니다.</p>
+<p>쿼리, 키, 값 벡터를 구분했으니 이후는 간단합니다. 쿼리 벡터인 $s_3^{(2)}$와 연관된 키 벡터를 $h_1^{(2)}, h_2^{(2)}, \dots, h_6^{(2)}$ 중에서 찾고, 연관도에 따라 값 벡터들의 가중 평균을 계산해서 반환하면 됩니다. 쿼리와 키 벡터 사이의 연관도는 아까 봤던 Dot-Product 어텐션을 사용할 수도 있고, 다른 방식을 사용할 수도 있습니다. 위 예시에서는 반환된 가중 평균 값 벡터를 쿼리 벡터 $s_3^{(2)}$와 합쳐서 Fully-Connected Layer를 통과시켜 최종적으로 번역된 단어(로봇)를 생성합니다.</p>
+<h3 id="4-example2-multi-head-self-attention-in-transformer">4. Example2: Multi-Head Self-Attention in Transformer<a hidden class="anchor" aria-hidden="true" href="#4-example2-multi-head-self-attention-in-transformer">#</a></h3>
+<p>다음 예시는 Transformer에 사용된 어텐션 메커니즘입니다. <a href="https://arxiv.org/abs/1706.03762">Transformer는 구글에서 제안한 Seq2Seq 모델</a>로, RNN을 사용하지 않고 어텐션만으로 Sequential 데이터를 처리하도록 제안된 신경망 구조입니다. 자연어 처리, 컴퓨터 비젼 등 많은 영역에서 이 Transformer가 사용되고 있습니다. 여기서 사용된 어텐션 메커니즘은 Multi-Head Self-Attention이라고 합니다. 이름이 복잡한데 뜻인지 하나씩 살펴보도록 하겠습니다.</p>
+<p>우선 Self-Attention이 무슨 뜻인지부터 보겠습니다. 위의 번역기 예시에서 보았듯이 어텐션의 쿼리, 키, 값 벡터 중 키와 값 벡터는 서로 연관되어 있는 경우가 많이 있습니다. 그도 그럴게 키와 값 벡터는 마치 사전의 단어와 뜻풀이처럼 서로 짝지어져 정리되어있는 것으로 생각할 수 있는데, 아무 연관도 없는 단어와 뜻풀이를 짝짓는건 이상하잖아요. 그래서 서로 연관된 정보를 담고 있거나, 위의 번역기 예시처럼 아예 동일한 벡터를 사용하기도 합니다. Self-Attention은 여기에 더불어 쿼리 벡터까지 서로 같은 정보를 가지고 연관되어 있는 어텐션을 말합니다. 쿼리와 연관된 키를 찾는데 그 쿼리와 키가 서로 같은 정보를 가지고 있다니, 마치 자기 자신을 알기 위해 자신에게 집중하는 것과 비슷하지요. 그래서 Self-Attention입니다. 아래 그림으로 살펴볼게요.</p>
+<p>
+
+<figure>
+  <img src="/posts/images/self_attention.png" alt="self_attention.png" loading="lazy" />
+  <figcaption style="text-align: center; color: gray">Transformer의 Self-Attention은 쿼리, 키, 값 벡터가 동일한 인풋에서 계산된다</figcaption>
+</figure>
+</p>
+<p>위 그림을 보면 $x_1$이라는 하나의 인풋 벡터에 $W_q$, $W_k$, $W_v$ 행렬을 곱해서 $q_1$, $k_1$, $v_1$이라는 쿼리, 키, 값 벡터로 변환된 모습이 나와있습니다. 물론 서로 다른 행렬을 곱했기 때문에 $q_1$, $k_1$, $v_1$은 서로 완전히 똑같은 벡터는 아니지만, 같은 인풋 벡터로부터 왔기 때문에 서로 연관된 정보를 담고있다고 볼 수 있습니다.</p>
+<p>똑같은 방식으로 $x_2$ 인풋에 대해서도 $q_2$, $k_2$, $v_2$ 벡터를 만들 수 있습니다. 그리고 이 쿼리, 키, 값 벡터들을 이용해 여태까지와 마찬가지로 어텐션을 계산하면 됩니다. 쿼리 벡터와 키 벡터들 사이의 연관도 $\alpha$를 계산한 뒤, 가중치에 맞게 값 벡터의 가중 평균을 반환합니다. 위 그림에서는 첫번째 쿼리 $q_1$에 대해서 어텐션을 계산하는 모습이 나타나있지만, 당연히 $q_2$에 대해서도 같은 방식으로 계산해줄 수 있습니다.</p>
+<p>원본 논문에서는 연관도 $\alpha$를 계산하기 위해 Scaled Dot-Product 어텐션이라는 방법을 제안했습니다. 우리가 위에서 예시로 봤던 Dot-Product 어텐션과 거의 유사합니다.</p>
+<p>$$\alpha_{i} = \frac{\exp{(q^{T} k_{i} / \sqrt{d_k})}}{\sum_{j}\exp{(q^{T} k_{j} / \sqrt{d_k})}}$$</p>
+<p>쿼리와 키의 내적을 $\sqrt{d_k}$로 나눠준다는 것 이외에는 Dot-Product 어텐션과 똑같습니다. $d_k$는 쿼리, 키 벡터의 차원 크기입니다. 쿼리, 키 벡터의 차원 크기만큼 Scaling을 해줬으니 이름이 Scaled Dot-Product 어텐션이에요. 쿼리, 키 벡터의 차원이 너무 크다면 두 벡터의 내적값이 커지고, 그럼 결국 Softmax 함수를 통과할 때에 값이 지나치게 크거나 작아져서 Gradient가 제대로 전달되지 않는 문제를 방지하기 위해 $\sqrt{d_k}$로 나눠준다고 원본 논문에서 설명하고 있습니다.</p>
+<p>※ 쿼리, 키 벡터는 서로 내적을 해야하기 때문에 차원이 $d_k$로 서로 같아야 합니다. 하지만 값 벡터는 값 벡터들끼리의 가중평균만 계산하면 되기 때문에 굳이 차원이 $d_k$로 같은 필요는 없습니다.</p>
+<p>우리는 지금 벡터 형태로 Selt-Attention의 계산 과정을 살펴보았지만 원본 논문에서는 행렬식으로 설명을 해두었습니다. 똑같은 내용인데 행렬식으로 간결하게 표현한 것 뿐입니다. 수식은 아래와 같아요.</p>
+<p>$$\text{Attention}(Q, K, V) = \text{softmax}\left( \frac{QK^T}{\sqrt{d^{k}}} \right)V$$</p>
+<p>행렬 형태의 그림은 아래와 같습니다.</p>
+<p>
+
+<figure>
+  <img src="/posts/images/self_attention_matrix.png" alt="self_attention_matrix.png" loading="lazy" />
+  <figcaption style="text-align: center; color: gray">Self-Attention 계산의 행렬 구조</figcaption>
+</figure>
+</p>
+<p>Self-Attention에 대해 알아보았으니 이번엔 Multi-Head가 무슨 뜻인지 볼게요. 아까 우리는 인풋 벡터 $x$에 행렬 $W_q$, $W_k$, $W_v$를 곱해서 쿼리 벡터 $q$와 키 벡터 $k$와 값 벡터 $v$를 하나씩 만들었습니다. 하지만 만약 행렬 $W_q$를 두개 만든다면 어떻게 될까요? 즉, $W_q^{(1)}$과 $W_q^{(2)}$ 두개의 행렬이 생기는 겁니다. 그러면 하나의 인풋 벡터로 쿼리 벡터를 두개 만들 수 있겠지요. 같은 방법으로 키와 값 벡터도 두개씩 만들 수 있습니다. $W_q$, $W_k$, $W_v$ 행렬을 $n$개씩 만든다면? 하나의 인풋 벡터로 $n$개의 쿼리, 키, 값 벡터를 만들어낼 수 있겠지요. 하나의 인풋 벡터로 여러개의 쿼리, 키, 값 벡터를 만드는 게 마치 머리가 여러개 있다고 하여 Multi-Head입니다. 행렬 형태로 계산되는 그림을 한번 볼게요.</p>
+<p>
+
+<figure>
+  <img src="/posts/images/multihead_self_attention.png" alt="multihead_self_attention.png" loading="lazy" />
+  <figcaption style="text-align: center; color: gray">Self-Attention 구조를 동시에 여러개 개산할 수 있다</figcaption>
+</figure>
+</p>
+<p>하나의 인풋 Matrix로 여러개의 Self-Attention 결과를 계산할 수 있습니다. 이 결과들을 전부 이어붙인 뒤 Fully-Connected Layer를 통과시켜서 원래의 output과 같은 크기를 만들어줄 수 있지요. 이 전체 구조가 바로 Multi-Head Self-Attention입니다. 쿼리, 키, 값 벡터가 서로 연관된 정보를 담고 있는 Self-Attention, 거기에 동시에 여러 개의 쿼리, 키, 값 벡터를 생성해서 연산하는 Multi-Head 구조를 살펴보았습니다. Transformer는 이 구조를 활용하여 RNN 없이 Sequential 데이터를 처리할 수 있도록 제안되었습니다.</p>
+<h3 id="5-example3-bottelneck-attention-module-for-cnn">5. Example3: Bottelneck Attention Module for CNN<a hidden class="anchor" aria-hidden="true" href="#5-example3-bottelneck-attention-module-for-cnn">#</a></h3>
+<p>이번 예시는 이미지를 처리할 때 사용되는 어텐션 구조입니다. <a href="https://arxiv.org/abs/1807.06514">BAM(Bottleneck Attention Module)</a> 이라는 신경망 구조는 이미지의 채널과 공간 정보를 이용해 쿼리와 키 사이의 유사도를 계산합니다. 이 어텐션 구조에서 쿼리 벡터는 이미지입니다. 조금 더 정확하게는 Convolution Layer을 통과해서 나온 가로 $W$, 세로 $H$, 채널 $C$의 피처맵 $F$입니다. 그리고 이 쿼리와 연관도를 계산할 키 벡터 역시 동일한 피처맵 벡터 $F$입니다. 그리고 값 벡터 역시 피처맵 백터 $F$가 되겠습니다. 아까 봤던 Self-Attention 개념입니다. BAM은 쿼리와 키 벡터 간의 연관도를 계산하기 위해 신경망 구조를 사용합니다. 즉, 학습된 신경망 모델에 쿼리이자 키인 피처맵 $F$를 통과시켜 연관도 $M(F)$를 계산하는 방식이에요. 어떤 신경망 구조를 이용해 연관도를 계산하는지 살펴볼게요.</p>
+<p>BAM에서는 우선 피처맵 $F$의 채널 정보를 반영할 수 있는 Channel-Attention이라는 구조를 사용했습니다. 아래와 같은 신경망 모델이에요.</p>
+<p>$$M_{c}(F) = \text{BN}(\text{MLP}(\text{AvgPool}(F)))$$</p>
+<p>피처맵 $F$의 공간 정보를 Average Pooling을 이용해 하나로 합친 뒤 MLP 모델과 Batch Normalization을 통과시키는 방식입니다. 위 신경망 모델이 학습되면 이 구조를 통해 $F$에서 유용한 채널 정보를 뽑아낼 수 있겠지요. 피처맵 $F$는 Average Pooling을 통해 $C \times H \times W$에서 $C \times 1 \times 1$로 모양이 바뀝니다. MLP와 BN에서는 벡터의 크기를 유지시켜 최종적으로 $M_{c}(F)$는 $C \times 1 \times 1$ 모양이 됩니다.</p>
+<p>이렇게 계산된 Channel-Attention에 더불어 BAM에서는 이미지의 공간 정보를 반영하기 위한 Spatial-Attention이라는 아래 구조를 사용했습니다.</p>
+<p>$$M_{s}(F) = \text{BN}(f_{3}^{1\times1}(f_{2}^{3\times3}(f_{1}^{3\times3}(f_{0}^{1\times1}(F)))))$$</p>
+<p>$f$는 Convolution Layer입니다. 그리고 위에 첨자로 붙은 것이 필터의 크기입니다. 피처맵 $F$는 $f_{0}^{1\times1}$를 통과하면서 Channel 정보가 압축됩니다. $f_{1}^{3\times3}$과 $f_{2}^{3\times3}$에서는 Dilated Convoluation을 사용해 피처맵의 크기를 유지하면서 공간 정보를 추출한 뒤 최종적으로 $f_{3}^{1\times1}$를 통과하면서 모양은 $1 \times H \times W$가 됩니다.</p>
+<p>Channel-Attention과 Spatial-Attention을 구했으면 두 벡터를 이용해 최종 연관도 $M(F)$를 아래와 같이 계산합니다.</p>
+<p>$$M(F) = \sigma(M_{c}(F) + M_{s}(F))$$</p>
+<p>$M_{c}(F)$와 $M_{s}(F)$는 $C \times H \times W$ 모양으로 변환하여 모양을 서로 맞춰준 뒤 더해줍니다. 그리고 Sigmoid 함수를 통과시켜 최종적으로 피처맵 $F$의 연관도 $M(F)$가 계산되지요. 뭔가 복잡하게 설명했지만, 결국 신경망을 이용해 쿼리이자 키인 피처맵 백터 $F$의 연관도를 계산한다는 이야기였습니다. 그리고 BAM은 최종적으로 이 연관도를 고려하여 키 벡터를 반환하게 되지요. 아래와 같은 수식을 사용합니다.</p>
+<p>$$F + M(F) \circ F$$</p>
+<p>$\circ$은 Element-wise 곱셈입니다. 연관도 $M(F)$와 키 벡터 $F$는 서로 모양이 같으니 그대로 곱해줄 수 있어요. $F$를 추가로 더해주는 이유는 원 논문에서 Residual Network 구조를 활용해 학습에 도움을 주기 위해서라고 설명합니다. 이렇게 반환된 벡터는 피처맵 벡터 $F$에서 공간, 채널 정보를 고려해 필요한 부분에 집중한 새로운 피처맵 벡터가 되는 것이지요.</p>
+<h3 id="6-마무리">6. 마무리<a hidden class="anchor" aria-hidden="true" href="#6-마무리">#</a></h3>
+<p>여기까지 해서 딥러닝에 사용되는 어텐션 메커니즘의 구조와 예시를 살펴보았습니다. 여러 가지 다양한 어텐션 방법들이 제안되었지만, 기본적으로는 쿼리 벡터와 연관된 키 벡터를 찾고, 연결된 값 벡터를 반환한다는 구조로 이해할 수 있습니다. 예시로 들었던 내용들은 사실 어텐션 구조에 초점을 맞추느라 많은 내용들을 생략했어요. 직접 구현이 필요하거나 더 자세한 내용을 알고싶다면 아래 참고자료의 원 논문들을 보면 좋습니다. 어텐션 구조는 학습했을 때의 성능도 물론 강력하지만, 쿼리와 키 사이의 연관도를 직접 뜯어보고 현재 신경망이 어디에 집중하고 있는지 직관적으로 알 수 있습니다. 즉, 학습된 신경망이 무슨 짓을 하고있는 건지 대충이나마 시각적으로 나타낼 수 있다는 것이지요. 내부 계산 로직을 알기 힘든 신경망 모델에서 이 점은 꽤 장점이 되기도 합니다. 어텐션 구조는 점점 더 많은 곳에 사용되고 있기 때문에 기본적인 원리와 구조를 이해해 두는 것은 중요합니다. 앞으로 제안될 수많은 어텐션 모델들의 구조를 이해하는 데에 이 내용이 도움이 되면 좋겠습니다.</p>
+<h3 id="참고-자료">참고 자료<a hidden class="anchor" aria-hidden="true" href="#참고-자료">#</a></h3>
+<ol>
+<li>Vaswani et al. <a href="https://arxiv.org/abs/1706.03762">&ldquo;Attention Is All You Need&rdquo;</a></li>
+<li>Luong et al. <a href="https://arxiv.org/abs/1508.04025">&ldquo;Effective Approaches to Attention-based Neural Machine Translation&rdquo;</a></li>
+<li>Xu et al. <a href="https://arxiv.org/abs/1502.03044">&ldquo;Show, Attend and Tell: Neural Image Caption Generation with Visual Attention&rdquo;</a></li>
+<li>Jay Alammar <a href="https://jalammar.github.io/illustrated-transformer/">&ldquo;The Illustrated Transformer&rdquo;</a></li>
+<li>cchyun <a href="https://paul-hyun.github.io/transformer-01/">&ldquo;Transformer (Attention Is All You Need) 구현하기&rdquo;</a></li>
+<li>Park et al. <a href="https://arxiv.org/abs/1807.06514">&ldquo;BAM: Bottleneck Attention Module&rdquo;</a></li>
+</ol>
+
+
+  </div>
+
+  <footer class="post-footer">
+    <ul class="post-tags">
+    </ul>
+  </footer>
+</article>
+    </main>
+    
+<footer class="footer">
+    <span>&copy; 2023 <a href="http://repun.github.io/">MemoBlog</a></span>
+    <span>
+        Powered by
+        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
+        <a href="https://github.com/adityatelange/hugo-PaperMod/" rel="noopener" target="_blank">PaperMod</a>
+    </span>
+</footer>
+<a href="#top" aria-label="go to top" title="Go to Top (Alt + G)" class="top-link" id="top-link" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentColor">
+        <path d="M12 6H0l6-6z" />
+    </svg>
+</a>
+
+<script>
+    let menu = document.getElementById('menu')
+    if (menu) {
+        menu.scrollLeft = localStorage.getItem("menu-scroll-position");
+        menu.onscroll = function () {
+            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
+        }
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+            var id = this.getAttribute("href").substr(1);
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
+                    behavior: "smooth"
+                });
+            } else {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
+            }
+            if (id === "top") {
+                history.replaceState(null, null, " ");
+            } else {
+                history.pushState(null, null, `#${id}`);
+            }
+        });
+    });
+
+</script>
+<script>
+    var mybutton = document.getElementById("top-link");
+    window.onscroll = function () {
+        if (document.body.scrollTop > 800 || document.documentElement.scrollTop > 800) {
+            mybutton.style.visibility = "visible";
+            mybutton.style.opacity = "1";
+        } else {
+            mybutton.style.visibility = "hidden";
+            mybutton.style.opacity = "0";
+        }
+    };
+
+</script>
+<script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+        if (document.body.className.includes("dark")) {
+            document.body.classList.remove('dark');
+            localStorage.setItem("pref-theme", 'light');
+        } else {
+            document.body.classList.add('dark');
+            localStorage.setItem("pref-theme", 'dark');
+        }
+    })
+
+</script>
+</body>
+
+</html>
