@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en" dir="auto">
+
+<head><meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="robots" content="index, follow">
+<title>AMP(Automatic Mixed Precision)를 이용한 신경망 학습 | MemoBlog</title>
+<meta name="keywords" content="">
+<meta name="description" content="이번 글은 Automatic Mixed-Precision(AMP)를 이용해 신경망을 학습하는 원리를 간단하게 정리합니다. Mixed-Precision이라는건 말 그대로 Precision을 섞었다는 의미입니다. 보통 PyTorch나 TensorFlow 등의 딥러닝 프레임워크를 이용해 신경망 모델을 학습시킬 경우, 따로 설정을 하지 않는 이상 32-bit 크기의 소수 자료형을 이용해 계산합니다. 이 32-bit 크기의 소수 자료형을 Single Precision 혹은 FP32라고 부르지요. 하지만 32-bit의 절반, 16-bit만을 이용해 소수를 표현할 수도 있습니다. 이 자료형을 Half Precision 혹은 FP16 이라고 부릅니다. FP16은 FP32에 비해 메모리도 적게 먹고 빠르게 계산할 수 있지만, 표현할 수 있는 소수의 범위가 작습니다.">
+<meta name="author" content="">
+<link rel="canonical" href="http://repun.github.io/posts/amp/">
+<link crossorigin="anonymous" href="/assets/css/stylesheet.9d4f844eaa4f78f307fe7b60e91f30525e084db78986cd1660839e63f5a041cb.css" integrity="sha256-nU&#43;ETqpPePMH/ntg6R8wUl4ITbeJhs0WYIOeY/WgQcs=" rel="preload stylesheet" as="style">
+<script defer crossorigin="anonymous" src="/assets/js/highlight.f413e19d0714851f6474e7ee9632408e58ac146fbdbe62747134bea2fa3415e0.js" integrity="sha256-9BPhnQcUhR9kdOfuljJAjlisFG&#43;9vmJ0cTS&#43;ovo0FeA="
+    onload="hljs.initHighlightingOnLoad();"></script>
+<link rel="icon" href="http://repun.github.io/favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="http://repun.github.io/favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="http://repun.github.io/favicon-32x32.png">
+<link rel="apple-touch-icon" href="http://repun.github.io/apple-touch-icon.png">
+<link rel="mask-icon" href="http://repun.github.io/safari-pinned-tab.svg">
+<meta name="theme-color" content="#2e2e33">
+<meta name="msapplication-TileColor" content="#2e2e33">
+<noscript>
+    <style>
+        #theme-toggle,
+        .top-link {
+            display: none;
+        }
+
+    </style>
+    <style>
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --theme: rgb(29, 30, 32);
+                --entry: rgb(46, 46, 51);
+                --primary: rgb(218, 218, 219);
+                --secondary: rgb(155, 156, 157);
+                --tertiary: rgb(65, 66, 68);
+                --content: rgb(196, 196, 197);
+                --hljs-bg: rgb(46, 46, 51);
+                --code-bg: rgb(55, 56, 62);
+                --border: rgb(51, 51, 51);
+            }
+
+            .list {
+                background: var(--theme);
+            }
+
+            .list:not(.dark)::-webkit-scrollbar-track {
+                background: 0 0;
+            }
+
+            .list:not(.dark)::-webkit-scrollbar-thumb {
+                border-color: var(--theme);
+            }
+        }
+
+    </style>
+</noscript><script>
+MathJax = {
+  tex: {
+    inlineMath: [['$', '$'], ['\\(', '\\)']]
+  }
+};
+</script>
+<script id="MathJax-script" async
+  src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
+</script>
+  <meta property="og:title" content="AMP(Automatic Mixed Precision)를 이용한 신경망 학습" />
+<meta property="og:description" content="이번 글은 Automatic Mixed-Precision(AMP)를 이용해 신경망을 학습하는 원리를 간단하게 정리합니다. Mixed-Precision이라는건 말 그대로 Precision을 섞었다는 의미입니다. 보통 PyTorch나 TensorFlow 등의 딥러닝 프레임워크를 이용해 신경망 모델을 학습시킬 경우, 따로 설정을 하지 않는 이상 32-bit 크기의 소수 자료형을 이용해 계산합니다. 이 32-bit 크기의 소수 자료형을 Single Precision 혹은 FP32라고 부르지요. 하지만 32-bit의 절반, 16-bit만을 이용해 소수를 표현할 수도 있습니다. 이 자료형을 Half Precision 혹은 FP16 이라고 부릅니다. FP16은 FP32에 비해 메모리도 적게 먹고 빠르게 계산할 수 있지만, 표현할 수 있는 소수의 범위가 작습니다." />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="http://repun.github.io/posts/amp/" /><meta property="article:section" content="posts" />
+<meta property="article:published_time" content="2022-08-08T17:16:35+09:00" />
+<meta property="article:modified_time" content="2022-08-08T17:16:35+09:00" />
+
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="AMP(Automatic Mixed Precision)를 이용한 신경망 학습"/>
+<meta name="twitter:description" content="이번 글은 Automatic Mixed-Precision(AMP)를 이용해 신경망을 학습하는 원리를 간단하게 정리합니다. Mixed-Precision이라는건 말 그대로 Precision을 섞었다는 의미입니다. 보통 PyTorch나 TensorFlow 등의 딥러닝 프레임워크를 이용해 신경망 모델을 학습시킬 경우, 따로 설정을 하지 않는 이상 32-bit 크기의 소수 자료형을 이용해 계산합니다. 이 32-bit 크기의 소수 자료형을 Single Precision 혹은 FP32라고 부르지요. 하지만 32-bit의 절반, 16-bit만을 이용해 소수를 표현할 수도 있습니다. 이 자료형을 Half Precision 혹은 FP16 이라고 부릅니다. FP16은 FP32에 비해 메모리도 적게 먹고 빠르게 계산할 수 있지만, 표현할 수 있는 소수의 범위가 작습니다."/>
+
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position":  1 ,
+      "name": "Posts",
+      "item": "http://repun.github.io/posts/"
+    }, 
+    {
+      "@type": "ListItem",
+      "position":  2 ,
+      "name": "AMP(Automatic Mixed Precision)를 이용한 신경망 학습",
+      "item": "http://repun.github.io/posts/amp/"
+    }
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "AMP(Automatic Mixed Precision)를 이용한 신경망 학습",
+  "name": "AMP(Automatic Mixed Precision)를 이용한 신경망 학습",
+  "description": "이번 글은 Automatic Mixed-Precision(AMP)를 이용해 신경망을 학습하는 원리를 간단하게 정리합니다. Mixed-Precision이라는건 말 그대로 Precision을 섞었다는 의미입니다. 보통 PyTorch나 TensorFlow 등의 딥러닝 프레임워크를 이용해 신경망 모델을 학습시킬 경우, 따로 설정을 하지 않는 이상 32-bit 크기의 소수 자료형을 이용해 계산합니다. 이 32-bit 크기의 소수 자료형을 Single Precision 혹은 FP32라고 부르지요. 하지만 32-bit의 절반, 16-bit만을 이용해 소수를 표현할 수도 있습니다. 이 자료형을 Half Precision 혹은 FP16 이라고 부릅니다. FP16은 FP32에 비해 메모리도 적게 먹고 빠르게 계산할 수 있지만, 표현할 수 있는 소수의 범위가 작습니다.",
+  "keywords": [
+    
+  ],
+  "articleBody": "이번 글은 Automatic Mixed-Precision(AMP)를 이용해 신경망을 학습하는 원리를 간단하게 정리합니다. Mixed-Precision이라는건 말 그대로 Precision을 섞었다는 의미입니다. 보통 PyTorch나 TensorFlow 등의 딥러닝 프레임워크를 이용해 신경망 모델을 학습시킬 경우, 따로 설정을 하지 않는 이상 32-bit 크기의 소수 자료형을 이용해 계산합니다. 이 32-bit 크기의 소수 자료형을 Single Precision 혹은 FP32라고 부르지요. 하지만 32-bit의 절반, 16-bit만을 이용해 소수를 표현할 수도 있습니다. 이 자료형을 Half Precision 혹은 FP16 이라고 부릅니다. FP16은 FP32에 비해 메모리도 적게 먹고 빠르게 계산할 수 있지만, 표현할 수 있는 소수의 범위가 작습니다. 그래서 신경망 모델을 단순히 FP16으로 학습시킬 경우, FP32를 사용할 때에 비해 모델 학습이 제대로 되지 않거나 정확도가 떨어지는 일이 발생할 수 있어요. Mixed-Precision은 FP32와 FP16을 섞어 사용해서 모델의 정확도를 유지하면서 메모리 사용량과 계산 속도를 개선하는 기법입니다. 물론 여러 훌륭한 분들이 연구해온 다양한 방법들이 있겠지만, 이 글에서는 NVidia에서 제안하고 소개한 내용을 간단하게 정리했습니다. 원본 논문에 자세한 내용과 실험 결과가 있으니 함께 읽으면 매우 좋습니다. 사실 구현이야 이미 똑똑한 분들이 전부 해두었으니 코드 몇줄 추가하면 AMP를 사용하는 것은 어렵지 않지만, 그래도 원리 정도는 간단하게나마 알고 써야 좋으니까요.\n1. 소수의 표현 AMP의 원리를 이해하기 위해서는 우선 소수가 컴퓨터에서 어떻게 표현되는지 알아두면 좋습니다. FP16이 16-bit 공간을 이용해 어떻게 소수를 표현하는지 살펴볼게요. FP16은 16-bit 크기의 공간을 1, 5, 10 bit로 나눠서 사용합니다.\n$$\\underbrace{0}_{\\text{sign}} \\ \\underbrace{00000}_{\\text{exponent}} \\ \\underbrace{0000000000}_{\\text{mantissa}}$$\n처음 1-bit는 sign bit라고 부르고 소수가 양수인지 음수인지를 나타냅니다. 다음 5-bit는 exponent, 그 다음 10-bit는 mantissa (혹은 significand)라고 부르고 소수의 구체적인 값을 나타낼 때 사용해요. bit 수를 보면 sign bit는 0, 혹은 1의 값을 나타낼 수 있고, exponent는 0~31, mantissa는 0~1023의 숫자를 나타낼 수 있다는 것을 알 수 있지요. 편의를 위해 이 글에서는 sign, exponent, mantissa를 10진수 숫자의 튜플로 표기하겠습니다. 예를 들어, $0\\ 10110\\ 0011001010$는 $(0, 22, 202)$로 쓰겠습니다. 그리고 기본적으로 이 sign, exponent, mantissa를 아래의 수식에 집어넣으면 실제 FP16이 나타내는 10진수 소수를 계산할 수 있습니다.\n$$(-1)^{\\text{sign}} \\times 2^{\\text{exponent}-15} \\times \\left( 1 + \\frac{\\text{mantissa}}{1024} \\right) \\tag{1}\\label{1}$$\n즉, $(0, 22, 202)$은 수식 $\\eqref{1}$을 통해 $153.25$를 나타낸다는 것을 알 수 있지요. 수식을 보면 과학적 기수법(Scientific Notation)과 모양이 닮았습니다. 예를 들어, $153.25$라는 숫자를 우리가 과학적 기수법으로 $10^{2}\\times 1.5325$라고 나타내는 것과 비슷하게 FP16에서는 $2^{7} \\times 1226 / 1024$으로 나타내는 것이지요. 한가지 기억해둘 것은 exponent에 따라 FP16이 나타낼 수 있는 인접한 숫자들 사이의 간격이 달라진다는 점이에요. 예를 들어, $(0, 10, 1)$와 $(0, 10, 2)$는 서로 $2^{-15}$ 만큼 차이나지만, $(0, 20, 1)$와 $(0, 20, 2)$은 서로 $2^{-5}$만큼 차이납니다. 즉, $2^{\\text{exponent}-25}$ 간격으로 인접한 숫자를 표현할 수 있겠네요.\n이렇게 수식 $\\eqref{1}$을 사용해서 계산하는 숫자를 noramlized number라고 합니다. 위 수식을 사용하지 않는 예외 상황도 있습니다. exponent가 0이고 mantissa가 0이 아닌 경우, 수식 $\\eqref{1}$ 대신 아래 수식을 사용합니다.\n$$ (-1)^{\\text{sign}} \\times 2^{-14} \\times \\left(\\frac{\\text{mantissa}}{1024} \\right) \\tag{2}\\label{2} $$\n수식 $\\eqref{2}$를 이용해 계산되는 숫자를 subnormal number라고 합니다. subnormal은 FP16으로 표현되는 소수의 차이를 FP16으로 나타낼 수 있도록 하기 위해 존재합니다. 가령 subnormal이 없다고 생각해봅시다. 그러면 normalized number로 표현된 숫자 $(0, 0, 2)$에서 $(0, 0, 1)$을 빼면 $2^{-15} \\times {1}/{1024}$가 되겠지요. 그러면 두 수의 차이가 $(0, 0, 1)=2^{-15} \\times {1025}/{1024}$보다 훨씬 작아지므로 FP16으로 제대로 나타낼 수 없고, 결국 두 수의 차이는 반올림하여 0으로 표현됩니다. 즉, $a \\neq b$이더라도 $a - b = 0$이 되어버릴 수 있습니다. 이런 문제를 방지하기 위해 exponent가 0이고 mantissa가 0이 아닐 경우엔 subnormal이라는 계산 방식을 둔 것입니다. subnormal이 있을 경우에 FP16으로 표현된 두 숫자의 차이가 0일 경우 두 숫자는 서로 같은 숫자라는 뜻이 됩니다.\n위 계산 방식들과 더불어 FP16의 exponent와 mantissa가 모두 0일 경우 숫자 0을 나타냅니다. 그리고 exponent가 $11111_{(2)}=31$일 경우 Inf, -Inf, 혹은 NaN을 나타내게 됩니다. FP16의 표현 방식에 대해서는 간단하게 이정도로만 넘어갈게요. 참고로 FP32도 기본적인 구조는 같습니다. 단지 32-bit로 메모리 공간이 넓으니 sign에 1-bit, exponent에 8-bit, 그리고 mantissa에 23-bit를 사용하여 표현할 수 있는 수가 많아질 뿐이에요.\n2. Mixed-Precision 이제 FP32와 FP16을 어떻게 신경망 모델 학습에 사용하는지 알아봅시다. 신경망 모델 학습은 일반적으로 Gradient Method를 이용합니다. 신경망 모델을 $f$, 모델의 파라미터를 $w$, Loss 함수를 $l$, Learning Rate를 $\\alpha$라고 하면 업데이트는 다음과 같은 수식으로 나타낼 수 있습니다.\n$$\\underbrace{w_{t+1} = w_{t} - \\alpha}_{\\text{FP32}} \\underbrace{\\nabla l(y, f(x))}_{\\text{FP16}} \\tag{3}\\label{3}$$\nMixed-Precision에선 이 업데이트 식 $\\eqref{3}$의 Gradient를 계산할 때까지 FP16을 사용합니다. Gradient가 구해지면, FP32로 바꾼 뒤 Learning Rate를 곱해 마찬가지로 FP32로 표현된 Weight를 업데이트합니다. 즉, 모델의 Weight는 기본적으로 FP32로 유지해두어야 한다는 뜻입니다. 이 FP32의 Weight를 Master Weight라고 해요. 하지만 Gradient는 FP16으로 계산한다고 했었지요. Gradient를 계산하기 위한 Forward, Backward Propagation에서는 이 Master Weight에서 FP16 버전의 Weight를 복사해 사용합니다. 그럼 FP16으로 다 통일하지 왜 Master Weight는 FP32가 필요할까요?\n첫번째 이유는 Gradient와 Learning Rate을 곱해서 나오는 최종 업데이트의 절댓값이 너무 작아질 경우 FP16으로 나타낼 수 없기 때문입니다. Gradient까지는 어찌저찌 FP16으로 계산을 한다고 해도 Learning Rate을 곱하는 과정에서 절댓값이 지나치게 작아질 경우 Underflow가 발생해 0이 될 수 있습니다. 그러면 Weight가 업데이트되지 않으니 학습이 안되겠지요.\n두번째 이유는 최종 업데이트를 FP16으로 나타냈다고 하더라도, Weight와 업데이트 간의 비율이 크게 차이날 경우 마찬가지로 업데이트가 되지 않을 수 있기 때문입니다. 아까 FP16에 대해 설명할 때 exponent에 따라 FP16이 나타낼 수 있는 인접한 숫자들 사이의 간격이 달라진다고 했지요. 예를 들어, exponent가 25인 경우 인접한 숫자의 간격은 $2^{25-25}=1$이 됩니다. 그러니까 $(0, 25, 1)$는 1025이고 $(0, 25, 2)$는 1026입니다. 1씩 차이나지요. 즉, FP16으로는 1025.5와 같은 숫자를 정확히 나타낼 수 없다는 뜻입니다. 만약 Weight가 1025인데 업데이트가 0.5만큼 된다면? 두 숫자 모두 각각은 FP16으로 나타낼 수 있지만, 업데이트된 Weight는 1025.5가 아니라 반올림해서 1026이 되겠지요. 이보다 더 작은 업데이트는 반올림해도 1025이니 업데이트가 전혀 되지 않기 시작합니다. 이런 일을 방지하기 위해 업데이트를 할 때에는 표현력이 높은 FP32를 사용하는 것입니다.\n자, 이렇게 FP32로 Master Weight를 저장해두는 이유를 알았습니다. 이번엔 FP16으로 Gradient를 계산하는 부분을 살펴볼게요. 우선 FP16을 이용해 Forward Propagation으로 Loss 함수까지는 그대로 계산할 수 있습니다. 하지만 계산된 Loss값을 이용해 Back Propagation으로 Gradient를 계산할 때 Gradient의 절댓값이 너무 작아지면 Underflow가 발생할 수 있습니다. 그러면 아까와 마찬가지로 Gradient가 0으로 표현되고 신경망 모델은 학습이 되지 않습니다. 이 문제는 FP16이 나타낼 수 있는 숫자 범위와 Gradient의 숫자 범위를 맞춰줌으로써 해결할 수 있습니다.\nFP16이 나타낼 수 있는 가장 작은 양수는 subnormal number인 $(0, 0, 1) = 2^{-24}$입니다. 그리고 가장 큰 수는 normalized number인 $(0, 30, 1023)=65504$에요. 하지만 우리가 신경망을 학습시킬 때 Gradient의 절댓값은 대부분 작은 숫자들입니다. 정상적인 학습에서 Gradient가 50000이 넘어가고 이런 경우는 거의 없지요. 하지만 $2^{-24}$보다 작은 Gradient가 발생하는 경우는 있을 수 있습니다. 즉, FP16이 표현하는 숫자 범위와 Gradient가 발생하는 숫자 범위가 서로 맞지 않는 것이 문제인 것이지요.\n이 문제는 간단하게 Loss값에 상수 $S$를 곱해서 해결할 수 있습니다. 예를 들어, 계산된 Loss값에 숫자 1024을 곱한 뒤에 Backpropagation을 한다면, 모든 Gradient 값 역시 1024배로 계산됩니다. 기존에 Gradient가 $2^{-30}$이라면 FP16에서는 0으로 바뀌어 학습이 되지 않았겠지만, Loss에 1024를 곱한다면 Gradient 역시 $2^{-20}$이 되어 FP16으로 제대로 나타낼 수 있게 됩니다. Gradient를 전부 다 계산한 뒤에는 FP32로 옮긴 뒤, 다시 $S$만큼 나눠주어서 원래 스케일로 되돌릴 수 있습니다. 그 뒤에 Learning Rate를 곱하고 Weight 업데이트를 진행하면 되지요. 이 과정을 Loss Scaling이라고 합니다.\n3. Automatic Loss Scaling 위에서 설명했듯이 Loss Scaling을 통해 Loss에 적당한 상수 $S$를 곱해주면 FP16으로 Gradient를 잘 나타낼 수 있습니다. 그럼 여기서 문제는 어떤 $S$가 적당한가 입니다. $S$가 너무 작다면 Gradient중 일부를 여전히 FP16으로 제대로 나타내지 못해 업데이트가 되지 않는 상황이 생기고, 반대로 너무 크다면 Gradient 절댓값이 65504보다 커져서 Inf나 NaN이 되어버릴 수 있습니다. 최대한 많은 Gradient를 제대로 나타낼 수 있는 $S$를 선택해야 하는데, Gradient의 범위는 데이터에 따라, 모델 구조에 따라, 혹은 Loss 함수에 따라 바뀌기 때문에 모든 상황에 동일한 $S$를 고정하여 사용하는 것은 별로 좋은 방법이 아닙니다.\n간단하게 생각해볼 수 있는 방법은, 본격적인 학습 전에 $S$를 몇번 바꿔가면서 시도 해보고 자신의 모델과 데이터에 맞는 적당한 $S$를 직접 찾아내는 방법입니다. 혹은 Gradient를 일단 계산한 뒤, Gradient 절댓값의 분포를 보고 $S$를 선택할 수도 있습니다. 하지만 어찌되었든 몇번의 시도와 계산을 거쳐 직접 $S$를 찾아내야하니 번거롭습니다. 그래서 대부분의 딥러닝 프레임워크에서는 아래와 같이 자동적으로 적당한 $S$를 찾아주는 방법을 사용합니다.\n$S$가 너무 작으면 업데이트가 제대로 되지 않아서 모델 성능에 영향을 줄 수 있지만, 너무 클 경우 더욱 심각한 문제가 생깁니다. 모델 Weight에 Inf, 혹은 NaN이 포함되기 시작하면 이후 모든 학습이 엉망이 되어 모델이 망가질 수 있어요. 그래서 $S$의 값은 되도록 크게 만들되, Overflow가 나지 않을 정도로만 크게 만들어야 합니다. Overflow만 나지 않는다면 $S$는 아무리 커도 문제 없습니다. 그래서 우선 Loss가 계산되면 거기에 일단 큰 $S$값을 곱해 Gradient를 계산해 봅니다. 그리고 Gradient에 Inf나 NaN이 포함되어있는지 확인하고, 없을 경우에는 Gradient를 $S$로 다시 나눠준 뒤 업데이트를 하면 됩니다. 만약 Inf나 NaN이 포함되어있다면 해당 Gradient는 버리고 $S$를 줄인다음에 다시 Gradient를 계산하면 됩니다. 이렇게 하면 Overflow가 나지 않는 선에서 가능한 큰 $S$를 사용할 수 있지요. 그리고 만약 정해진 iteration동안 Overflow가 한번도 나지 않는다면 $S$를 다시 키워줄 수도 있습니다. 특정 mini-batch에서만 Overflow가 났을 수도 있기 때문이지요.\n4. Tensor Cores Mixed-Precision의 대략적인 작동 원리는 정리했습니다만, 사실 위와 같은 방법을 적용한다고 학습이 항상 빨라지지는 않을 수 있습니다. 적당한 하드웨어가 있어야 해요. 딥러닝 모델 학습엔 보통 NVidia의 그래픽 카드를 사용하는데, 여기에 Tensor Core가 들어가있는지가 중요합니다. 이 Tensor Core는 16-bit 행렬 연산에 최적화 되어 있어 Mixed-Precision 학습을 할 때 FP16 행렬 계산을 굉장히 빠르게 할 수 있도록 해줍니다. 대부분의 요즘 그래픽카드에는 Tensor Core가 포함되어있지만, 대략 GTX 1000번대 시리즈나 그 이전의 오래된 그래픽 카드에는 Tensor Core가 포함되어있지 않을 수 있습니다. 물론 Tensor Core가 없더라도 Mixed-Precision으로 학습이 안되지는 않습니다. 학습 속도가 빨라지지 않을 수 있을 뿐 메모리 상의 이득은 여전히 얻을 수 있을거에요.\n5. 마무리 이렇게 해서 AMP를 이용한 신경망 모델 학습의 원리에 대해 정리했습니다. 사실 간단한 원리가 이런 정도이고, 실제 구현 상으로는 더 구체적으로 신경망의 Layer와 연산 종류에 따라 Master Weight와 FP16 계산 등에 대해 더욱 정밀하게 최적화되어 있는 것 같습니다. 그 정도의 구체적인 내용까지는 공부하기 힘들어 이 글에 정리하진 않았지만, 아주 상세한 내용을 모르더라도 PyTorch나 TensorFlow 등의 딥러닝 프레임워크에서는 AMP를 지원해주고 있기 때문에 메뉴얼을 보고 코드를 몇줄 추가하면 쉽게 사용해볼 수 있습니다. 적당한 하드웨어를 사용하면 실제로 AMP를 사용하지 않을 때보다 학습 시간과 그래픽 메모리 사용량이 매우 줄어드는 것을 볼 수 있습니다.\n참고자료 Micikevicius et al. “Mixed Precision Training” NVidia “Train With Mixed Precision” Ricky Reusser “Half-Precision Floating-Point, Visualized” ",
+  "wordCount" : "1545",
+  "inLanguage": "en",
+  "datePublished": "2022-08-08T17:16:35+09:00",
+  "dateModified": "2022-08-08T17:16:35+09:00",
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "http://repun.github.io/posts/amp/"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "MemoBlog",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "http://repun.github.io/favicon.ico"
+    }
+  }
+}
+</script>
+</head>
+
+<body class="" id="top">
+<script>
+    if (localStorage.getItem("pref-theme") === "dark") {
+        document.body.classList.add('dark');
+    } else if (localStorage.getItem("pref-theme") === "light") {
+        document.body.classList.remove('dark')
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.body.classList.add('dark');
+    }
+
+</script>
+
+<header class="header">
+    <nav class="nav">
+        <div class="logo">
+            <a href="http://repun.github.io/" accesskey="h" title="MemoBlog (Alt + H)">MemoBlog</a>
+            <div class="logo-switches">
+                <button id="theme-toggle" accesskey="t" title="(Alt + T)">
+                    <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <ul id="menu">
+        </ul>
+    </nav>
+</header>
+<main class="main">
+
+<article class="post-single">
+  <header class="post-header">
+    
+    <h1 class="post-title">
+      AMP(Automatic Mixed Precision)를 이용한 신경망 학습
+    </h1>
+    <div class="post-meta"><span title='2022-08-08 17:16:35 +0900 KST'>August 8, 2022</span>
+
+</div>
+  </header> <div class="toc">
+    <details >
+        <summary accesskey="c" title="(Alt + C)">
+            <span class="details">Table of Contents</span>
+        </summary>
+
+        <div class="inner"><ul>
+                <li>
+                    <a href="#1-%ec%86%8c%ec%88%98%ec%9d%98-%ed%91%9c%ed%98%84" aria-label="1. 소수의 표현">1. 소수의 표현</a></li>
+                <li>
+                    <a href="#2-mixed-precision" aria-label="2. Mixed-Precision">2. Mixed-Precision</a></li>
+                <li>
+                    <a href="#3-automatic-loss-scaling" aria-label="3. Automatic Loss Scaling">3. Automatic Loss Scaling</a></li>
+                <li>
+                    <a href="#4-tensor-cores" aria-label="4. Tensor Cores">4. Tensor Cores</a></li>
+                <li>
+                    <a href="#5-%eb%a7%88%eb%ac%b4%eb%a6%ac" aria-label="5. 마무리">5. 마무리</a></li>
+                <li>
+                    <a href="#%ec%b0%b8%ea%b3%a0%ec%9e%90%eb%a3%8c" aria-label="참고자료">참고자료</a>
+                </li>
+            </ul>
+        </div>
+    </details>
+</div>
+
+  <div class="post-content"><p>이번 글은 Automatic Mixed-Precision(AMP)를 이용해 신경망을 학습하는 원리를 간단하게 정리합니다. Mixed-Precision이라는건 말 그대로 Precision을 섞었다는 의미입니다. 보통 PyTorch나 TensorFlow 등의 딥러닝 프레임워크를 이용해 신경망 모델을 학습시킬 경우, 따로 설정을 하지 않는 이상 32-bit 크기의 소수 자료형을 이용해 계산합니다. 이 32-bit 크기의 소수 자료형을 Single Precision 혹은 FP32라고 부르지요. 하지만 32-bit의 절반, 16-bit만을 이용해 소수를 표현할 수도 있습니다. 이 자료형을 Half Precision 혹은 FP16 이라고 부릅니다. FP16은 FP32에 비해 메모리도 적게 먹고 빠르게 계산할 수 있지만, 표현할 수 있는 소수의 범위가 작습니다. 그래서 신경망 모델을 단순히 FP16으로 학습시킬 경우, FP32를 사용할 때에 비해 모델 학습이 제대로 되지 않거나 정확도가 떨어지는 일이 발생할 수 있어요. Mixed-Precision은 FP32와 FP16을 섞어 사용해서 모델의 정확도를 유지하면서 메모리 사용량과 계산 속도를 개선하는 기법입니다. 물론 여러 훌륭한 분들이 연구해온 다양한 방법들이 있겠지만, 이 글에서는 <a href="https://arxiv.org/abs/1710.03740">NVidia에서 제안하고 소개한 내용</a>을 간단하게 정리했습니다. 원본 논문에 자세한 내용과 실험 결과가 있으니 함께 읽으면 매우 좋습니다. 사실 구현이야 이미 똑똑한 분들이 전부 해두었으니 코드 몇줄 추가하면 AMP를 사용하는 것은 어렵지 않지만, 그래도 원리 정도는 간단하게나마 알고 써야 좋으니까요.</p>
+<h3 id="1-소수의-표현">1. 소수의 표현<a hidden class="anchor" aria-hidden="true" href="#1-소수의-표현">#</a></h3>
+<p>AMP의 원리를 이해하기 위해서는 우선 소수가 컴퓨터에서 어떻게 표현되는지 알아두면 좋습니다. FP16이 16-bit 공간을 이용해 어떻게 소수를 표현하는지 살펴볼게요. FP16은 16-bit 크기의 공간을 1, 5, 10 bit로 나눠서 사용합니다.</p>
+<p>$$\underbrace{0}_{\text{sign}} \ \underbrace{00000}_{\text{exponent}} \ \underbrace{0000000000}_{\text{mantissa}}$$</p>
+<p>처음 1-bit는 sign bit라고 부르고 소수가 양수인지 음수인지를 나타냅니다. 다음 5-bit는 exponent, 그 다음 10-bit는 mantissa (혹은 significand)라고 부르고 소수의 구체적인 값을 나타낼 때 사용해요. bit 수를 보면 sign bit는 0, 혹은 1의 값을 나타낼 수 있고, exponent는 0~31, mantissa는 0~1023의 숫자를 나타낼 수 있다는 것을 알 수 있지요. 편의를 위해 이 글에서는 sign, exponent, mantissa를 10진수 숫자의 튜플로 표기하겠습니다. 예를 들어, $0\ 10110\ 0011001010$는 $(0, 22, 202)$로 쓰겠습니다. 그리고 기본적으로 이 sign, exponent, mantissa를 아래의 수식에 집어넣으면 실제 FP16이 나타내는 10진수 소수를 계산할 수 있습니다.</p>
+<p>$$(-1)^{\text{sign}} \times 2^{\text{exponent}-15} \times \left( 1 + \frac{\text{mantissa}}{1024} \right) \tag{1}\label{1}$$</p>
+<p>즉, $(0, 22, 202)$은 수식 $\eqref{1}$을 통해 $153.25$를 나타낸다는 것을 알 수 있지요. 수식을 보면 과학적 기수법(Scientific Notation)과 모양이 닮았습니다. 예를 들어, $153.25$라는 숫자를 우리가 과학적 기수법으로 $10^{2}\times 1.5325$라고 나타내는 것과 비슷하게 FP16에서는 $2^{7} \times 1226 / 1024$으로 나타내는 것이지요. 한가지 기억해둘 것은 exponent에 따라 FP16이 나타낼 수 있는 인접한 숫자들 사이의 간격이 달라진다는 점이에요. 예를 들어, $(0, 10, 1)$와 $(0, 10, 2)$는 서로 $2^{-15}$ 만큼 차이나지만, $(0, 20, 1)$와 $(0, 20, 2)$은 서로 $2^{-5}$만큼 차이납니다. 즉, $2^{\text{exponent}-25}$ 간격으로 인접한 숫자를 표현할 수 있겠네요.</p>
+<p>이렇게 수식 $\eqref{1}$을 사용해서 계산하는 숫자를 noramlized number라고 합니다. 위 수식을 사용하지 않는 예외 상황도 있습니다. exponent가 0이고 mantissa가 0이 아닌 경우, 수식 $\eqref{1}$ 대신 아래 수식을 사용합니다.</p>
+<p>$$
+(-1)^{\text{sign}} \times 2^{-14} \times \left(\frac{\text{mantissa}}{1024} \right) \tag{2}\label{2}
+$$</p>
+<p>수식 $\eqref{2}$를 이용해 계산되는 숫자를 subnormal number라고 합니다. subnormal은 FP16으로 표현되는 소수의 차이를 FP16으로 나타낼 수 있도록 하기 위해 존재합니다. 가령 subnormal이 없다고 생각해봅시다. 그러면 normalized number로 표현된 숫자 $(0, 0, 2)$에서 $(0, 0, 1)$을 빼면 $2^{-15} \times {1}/{1024}$가 되겠지요. 그러면 두 수의 차이가 $(0, 0, 1)=2^{-15} \times {1025}/{1024}$보다 훨씬 작아지므로 FP16으로 제대로 나타낼 수 없고, 결국 두 수의 차이는 반올림하여 0으로 표현됩니다. 즉, $a \neq b$이더라도 $a - b = 0$이 되어버릴 수 있습니다. 이런 문제를 방지하기 위해 exponent가 0이고 mantissa가 0이 아닐 경우엔 subnormal이라는 계산 방식을 둔 것입니다. subnormal이 있을 경우에 FP16으로 표현된 두 숫자의 차이가 0일 경우 두 숫자는 서로 같은 숫자라는 뜻이 됩니다.</p>
+<p>위 계산 방식들과 더불어 FP16의 exponent와 mantissa가 모두 0일 경우 숫자 0을 나타냅니다. 그리고 exponent가 $11111_{(2)}=31$일 경우 Inf, -Inf, 혹은 NaN을 나타내게 됩니다. FP16의 표현 방식에 대해서는 간단하게 이정도로만 넘어갈게요. 참고로 FP32도 기본적인 구조는 같습니다. 단지 32-bit로 메모리 공간이 넓으니 sign에 1-bit, exponent에 8-bit, 그리고 mantissa에 23-bit를 사용하여 표현할 수 있는 수가 많아질 뿐이에요.</p>
+<h3 id="2-mixed-precision">2. Mixed-Precision<a hidden class="anchor" aria-hidden="true" href="#2-mixed-precision">#</a></h3>
+<p>이제 FP32와 FP16을 어떻게 신경망 모델 학습에 사용하는지 알아봅시다. 신경망 모델 학습은 일반적으로 Gradient Method를 이용합니다. 신경망 모델을 $f$, 모델의 파라미터를 $w$, Loss 함수를 $l$, Learning Rate를 $\alpha$라고 하면 업데이트는 다음과 같은 수식으로 나타낼 수 있습니다.</p>
+<p>$$\underbrace{w_{t+1} = w_{t} - \alpha}_{\text{FP32}} \underbrace{\nabla l(y, f(x))}_{\text{FP16}} \tag{3}\label{3}$$</p>
+<p>Mixed-Precision에선 이 업데이트 식 $\eqref{3}$의 Gradient를 계산할 때까지 FP16을 사용합니다. Gradient가 구해지면, FP32로 바꾼 뒤 Learning Rate를 곱해 마찬가지로 FP32로 표현된 Weight를 업데이트합니다. 즉, 모델의 Weight는 기본적으로 FP32로 유지해두어야 한다는 뜻입니다. 이 FP32의 Weight를 Master Weight라고 해요. 하지만 Gradient는 FP16으로 계산한다고 했었지요. Gradient를 계산하기 위한 Forward, Backward Propagation에서는 이 Master Weight에서 FP16 버전의 Weight를 복사해 사용합니다. 그럼 FP16으로 다 통일하지 왜 Master Weight는 FP32가 필요할까요?</p>
+<p>첫번째 이유는 Gradient와 Learning Rate을 곱해서 나오는 최종 업데이트의 절댓값이 너무 작아질 경우 FP16으로 나타낼 수 없기 때문입니다. Gradient까지는 어찌저찌 FP16으로 계산을 한다고 해도 Learning Rate을 곱하는 과정에서 절댓값이 지나치게 작아질 경우 Underflow가 발생해 0이 될 수 있습니다. 그러면 Weight가 업데이트되지 않으니 학습이 안되겠지요.</p>
+<p>두번째 이유는 최종 업데이트를 FP16으로 나타냈다고 하더라도, Weight와 업데이트 간의 비율이 크게 차이날 경우 마찬가지로 업데이트가 되지 않을 수 있기 때문입니다. 아까 FP16에 대해 설명할 때 exponent에 따라 FP16이 나타낼 수 있는 인접한 숫자들 사이의 간격이 달라진다고 했지요. 예를 들어, exponent가 25인 경우 인접한 숫자의 간격은 $2^{25-25}=1$이 됩니다. 그러니까 $(0, 25, 1)$는 1025이고 $(0, 25, 2)$는 1026입니다. 1씩 차이나지요. 즉, FP16으로는 1025.5와 같은 숫자를 정확히 나타낼 수 없다는 뜻입니다. 만약 Weight가 1025인데 업데이트가 0.5만큼 된다면? 두 숫자 모두 각각은 FP16으로 나타낼 수 있지만, 업데이트된 Weight는 1025.5가 아니라 반올림해서 1026이 되겠지요. 이보다 더 작은 업데이트는 반올림해도 1025이니 업데이트가 전혀 되지 않기 시작합니다. 이런 일을 방지하기 위해 업데이트를 할 때에는 표현력이 높은 FP32를 사용하는 것입니다.</p>
+<p>자, 이렇게 FP32로 Master Weight를 저장해두는 이유를 알았습니다. 이번엔 FP16으로 Gradient를 계산하는 부분을 살펴볼게요. 우선 FP16을 이용해 Forward Propagation으로 Loss 함수까지는 그대로 계산할 수 있습니다. 하지만 계산된 Loss값을 이용해 Back Propagation으로 Gradient를 계산할 때 Gradient의 절댓값이 너무 작아지면 Underflow가 발생할 수 있습니다. 그러면 아까와 마찬가지로 Gradient가 0으로 표현되고 신경망 모델은 학습이 되지 않습니다. 이 문제는 FP16이 나타낼 수 있는 숫자 범위와 Gradient의 숫자 범위를 맞춰줌으로써 해결할 수 있습니다.</p>
+<p>FP16이 나타낼 수 있는 가장 작은 양수는 subnormal number인 $(0, 0, 1) = 2^{-24}$입니다. 그리고 가장 큰 수는 normalized number인 $(0, 30, 1023)=65504$에요. 하지만 우리가 신경망을 학습시킬 때 Gradient의 절댓값은 대부분 작은 숫자들입니다. 정상적인 학습에서 Gradient가 50000이 넘어가고 이런 경우는 거의 없지요. 하지만 $2^{-24}$보다 작은 Gradient가 발생하는 경우는 있을 수 있습니다. 즉, FP16이 표현하는 숫자 범위와 Gradient가 발생하는 숫자 범위가 서로 맞지 않는 것이 문제인 것이지요.</p>
+<p>이 문제는 간단하게 Loss값에 상수 $S$를 곱해서 해결할 수 있습니다. 예를 들어, 계산된 Loss값에 숫자 1024을 곱한 뒤에 Backpropagation을 한다면, 모든 Gradient 값 역시 1024배로 계산됩니다. 기존에 Gradient가 $2^{-30}$이라면 FP16에서는 0으로 바뀌어 학습이 되지 않았겠지만, Loss에 1024를 곱한다면 Gradient 역시 $2^{-20}$이 되어 FP16으로 제대로 나타낼 수 있게 됩니다. Gradient를 전부 다 계산한 뒤에는 FP32로 옮긴 뒤, 다시 $S$만큼 나눠주어서 원래 스케일로 되돌릴 수 있습니다. 그 뒤에 Learning Rate를 곱하고 Weight 업데이트를 진행하면 되지요. 이 과정을 Loss Scaling이라고 합니다.</p>
+<h3 id="3-automatic-loss-scaling">3. Automatic Loss Scaling<a hidden class="anchor" aria-hidden="true" href="#3-automatic-loss-scaling">#</a></h3>
+<p>위에서 설명했듯이 Loss Scaling을 통해 Loss에 적당한 상수 $S$를 곱해주면 FP16으로 Gradient를 잘 나타낼 수 있습니다. 그럼 여기서 문제는 <strong>어떤 $S$가 적당한가</strong> 입니다. $S$가 너무 작다면 Gradient중 일부를 여전히 FP16으로 제대로 나타내지 못해 업데이트가 되지 않는 상황이 생기고, 반대로 너무 크다면 Gradient 절댓값이 65504보다 커져서 Inf나 NaN이 되어버릴 수 있습니다. 최대한 많은 Gradient를 제대로 나타낼 수 있는 $S$를 선택해야 하는데, Gradient의 범위는 데이터에 따라, 모델 구조에 따라, 혹은 Loss 함수에 따라 바뀌기 때문에 모든 상황에 동일한 $S$를 고정하여 사용하는 것은 별로 좋은 방법이 아닙니다.</p>
+<p>간단하게 생각해볼 수 있는 방법은, 본격적인 학습 전에 $S$를 몇번 바꿔가면서 시도 해보고 자신의 모델과 데이터에 맞는 적당한 $S$를 직접 찾아내는 방법입니다. 혹은 Gradient를 일단 계산한 뒤, Gradient 절댓값의 분포를 보고 $S$를 선택할 수도 있습니다. 하지만 어찌되었든 몇번의 시도와 계산을 거쳐 직접 $S$를 찾아내야하니 번거롭습니다. 그래서 대부분의 딥러닝 프레임워크에서는 아래와 같이 자동적으로 적당한 $S$를 찾아주는 방법을 사용합니다.</p>
+<p>$S$가 너무 작으면 업데이트가 제대로 되지 않아서 모델 성능에 영향을 줄 수 있지만, 너무 클 경우 더욱 심각한 문제가 생깁니다. 모델 Weight에 Inf, 혹은 NaN이 포함되기 시작하면 이후 모든 학습이 엉망이 되어 모델이 망가질 수 있어요. 그래서 $S$의 값은 되도록 크게 만들되, Overflow가 나지 않을 정도로만 크게 만들어야 합니다. Overflow만 나지 않는다면 $S$는 아무리 커도 문제 없습니다. 그래서 우선 Loss가 계산되면 거기에 일단 큰 $S$값을 곱해 Gradient를 계산해 봅니다. 그리고  Gradient에 Inf나 NaN이 포함되어있는지 확인하고, 없을 경우에는 Gradient를 $S$로 다시 나눠준 뒤 업데이트를 하면 됩니다. 만약 Inf나 NaN이 포함되어있다면 해당 Gradient는 버리고 $S$를 줄인다음에 다시 Gradient를 계산하면 됩니다. 이렇게 하면 Overflow가 나지 않는 선에서 가능한 큰 $S$를 사용할 수 있지요. 그리고 만약 정해진 iteration동안 Overflow가 한번도 나지 않는다면 $S$를 다시 키워줄 수도 있습니다. 특정 mini-batch에서만 Overflow가 났을 수도 있기 때문이지요.</p>
+<h3 id="4-tensor-cores">4. Tensor Cores<a hidden class="anchor" aria-hidden="true" href="#4-tensor-cores">#</a></h3>
+<p>Mixed-Precision의 대략적인 작동 원리는 정리했습니다만, 사실 위와 같은 방법을 적용한다고 학습이 항상 빨라지지는 않을 수 있습니다. 적당한 하드웨어가 있어야 해요. 딥러닝 모델 학습엔 보통 NVidia의 그래픽 카드를 사용하는데, 여기에 Tensor Core가 들어가있는지가 중요합니다. 이 Tensor Core는 16-bit 행렬 연산에 최적화 되어 있어 Mixed-Precision 학습을 할 때 FP16 행렬 계산을 굉장히 빠르게 할 수 있도록 해줍니다. 대부분의 요즘 그래픽카드에는 Tensor Core가 포함되어있지만, 대략 GTX 1000번대 시리즈나 그 이전의 오래된 그래픽 카드에는 Tensor Core가 포함되어있지 않을 수 있습니다. 물론 Tensor Core가 없더라도 Mixed-Precision으로 학습이 안되지는 않습니다. 학습 속도가 빨라지지 않을 수 있을 뿐 메모리 상의 이득은 여전히 얻을 수 있을거에요.</p>
+<h3 id="5-마무리">5. 마무리<a hidden class="anchor" aria-hidden="true" href="#5-마무리">#</a></h3>
+<p>이렇게 해서 AMP를 이용한 신경망 모델 학습의 원리에 대해 정리했습니다. 사실 간단한 원리가 이런 정도이고, 실제 구현 상으로는 더 구체적으로 신경망의 Layer와 연산 종류에 따라 Master Weight와 FP16 계산 등에 대해 더욱 정밀하게 최적화되어 있는 것 같습니다. 그 정도의 구체적인 내용까지는 공부하기 힘들어 이 글에 정리하진 않았지만, 아주 상세한 내용을 모르더라도 PyTorch나 TensorFlow 등의 딥러닝 프레임워크에서는 AMP를 지원해주고 있기 때문에 메뉴얼을 보고 코드를 몇줄 추가하면 쉽게 사용해볼 수 있습니다. 적당한 하드웨어를 사용하면 실제로 AMP를 사용하지 않을 때보다 학습 시간과 그래픽 메모리 사용량이 매우 줄어드는 것을 볼 수 있습니다.</p>
+<h3 id="참고자료">참고자료<a hidden class="anchor" aria-hidden="true" href="#참고자료">#</a></h3>
+<ol>
+<li>Micikevicius et al. <a href="https://arxiv.org/abs/1710.03740">&ldquo;Mixed Precision Training&rdquo;</a></li>
+<li>NVidia <a href="https://docs.nvidia.com/deeplearning/performance/mixed-precision-training/index.html">&ldquo;Train With Mixed Precision&rdquo;</a></li>
+<li>Ricky Reusser <a href="https://observablehq.com/@rreusser/half-precision-floating-point-visualized">&ldquo;Half-Precision Floating-Point, Visualized&rdquo;</a></li>
+</ol>
+
+
+  </div>
+
+  <footer class="post-footer">
+    <ul class="post-tags">
+    </ul>
+  </footer>
+</article>
+    </main>
+    
+<footer class="footer">
+    <span>&copy; 2023 <a href="http://repun.github.io/">MemoBlog</a></span>
+    <span>
+        Powered by
+        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
+        <a href="https://github.com/adityatelange/hugo-PaperMod/" rel="noopener" target="_blank">PaperMod</a>
+    </span>
+</footer>
+<a href="#top" aria-label="go to top" title="Go to Top (Alt + G)" class="top-link" id="top-link" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentColor">
+        <path d="M12 6H0l6-6z" />
+    </svg>
+</a>
+
+<script>
+    let menu = document.getElementById('menu')
+    if (menu) {
+        menu.scrollLeft = localStorage.getItem("menu-scroll-position");
+        menu.onscroll = function () {
+            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
+        }
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+            var id = this.getAttribute("href").substr(1);
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
+                    behavior: "smooth"
+                });
+            } else {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
+            }
+            if (id === "top") {
+                history.replaceState(null, null, " ");
+            } else {
+                history.pushState(null, null, `#${id}`);
+            }
+        });
+    });
+
+</script>
+<script>
+    var mybutton = document.getElementById("top-link");
+    window.onscroll = function () {
+        if (document.body.scrollTop > 800 || document.documentElement.scrollTop > 800) {
+            mybutton.style.visibility = "visible";
+            mybutton.style.opacity = "1";
+        } else {
+            mybutton.style.visibility = "hidden";
+            mybutton.style.opacity = "0";
+        }
+    };
+
+</script>
+<script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+        if (document.body.className.includes("dark")) {
+            document.body.classList.remove('dark');
+            localStorage.setItem("pref-theme", 'light');
+        } else {
+            document.body.classList.add('dark');
+            localStorage.setItem("pref-theme", 'dark');
+        }
+    })
+
+</script>
+</body>
+
+</html>

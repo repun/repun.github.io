@@ -5,7 +5,16 @@
     <link>http://repun.github.io/posts/</link>
     <description>Recent content in Posts on MemoBlog</description>
     <generator>Hugo -- gohugo.io</generator>
-    <lastBuildDate>Tue, 24 May 2022 17:17:44 +0900</lastBuildDate><atom:link href="http://repun.github.io/posts/index.xml" rel="self" type="application/rss+xml" />
+    <lastBuildDate>Mon, 08 Aug 2022 17:16:35 +0900</lastBuildDate><atom:link href="http://repun.github.io/posts/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>AMP(Automatic Mixed Precision)를 이용한 신경망 학습</title>
+      <link>http://repun.github.io/posts/amp/</link>
+      <pubDate>Mon, 08 Aug 2022 17:16:35 +0900</pubDate>
+      
+      <guid>http://repun.github.io/posts/amp/</guid>
+      <description>이번 글은 Automatic Mixed-Precision(AMP)를 이용해 신경망을 학습하는 원리를 간단하게 정리합니다. Mixed-Precision이라는건 말 그대로 Precision을 섞었다는 의미입니다. 보통 PyTorch나 TensorFlow 등의 딥러닝 프레임워크를 이용해 신경망 모델을 학습시킬 경우, 따로 설정을 하지 않는 이상 32-bit 크기의 소수 자료형을 이용해 계산합니다. 이 32-bit 크기의 소수 자료형을 Single Precision 혹은 FP32라고 부르지요. 하지만 32-bit의 절반, 16-bit만을 이용해 소수를 표현할 수도 있습니다. 이 자료형을 Half Precision 혹은 FP16 이라고 부릅니다. FP16은 FP32에 비해 메모리도 적게 먹고 빠르게 계산할 수 있지만, 표현할 수 있는 소수의 범위가 작습니다.</description>
+    </item>
+    
     <item>
       <title>딥러닝의 Attention Mechanism</title>
       <link>http://repun.github.io/posts/attention_mechanism/</link>
