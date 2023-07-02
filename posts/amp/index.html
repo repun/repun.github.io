@@ -5,7 +5,7 @@
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <meta name="robots" content="index, follow">
-<title>AMP(Automatic Mixed Precision)를 이용한 신경망 학습 | MemoBlog</title>
+<title>AMP(Automatic Mixed Precision)를 이용한 신경망 학습 | MLBlog</title>
 <meta name="keywords" content="">
 <meta name="description" content="이번 글은 Automatic Mixed-Precision(AMP)를 이용해 신경망을 학습하는 원리를 간단하게 정리합니다. Mixed-Precision이라는건 말 그대로 Precision을 섞었다는 의미입니다. 보통 PyTorch나 TensorFlow 등의 딥러닝 프레임워크를 이용해 신경망 모델을 학습시킬 경우, 따로 설정을 하지 않는 이상 32-bit 크기의 소수 자료형을 이용해 계산합니다. 이 32-bit 크기의 소수 자료형을 Single Precision 혹은 FP32라고 부르지요. 하지만 32-bit의 절반, 16-bit만을 이용해 소수를 표현할 수도 있습니다. 이 자료형을 Half Precision 혹은 FP16 이라고 부릅니다. FP16은 FP32에 비해 메모리도 적게 먹고 빠르게 계산할 수 있지만, 표현할 수 있는 소수의 범위가 작습니다.">
 <meta name="author" content="">
@@ -119,7 +119,7 @@ MathJax = {
   },
   "publisher": {
     "@type": "Organization",
-    "name": "MemoBlog",
+    "name": "MLBlog",
     "logo": {
       "@type": "ImageObject",
       "url": "http://repun.github.io/favicon.ico"
@@ -144,7 +144,7 @@ MathJax = {
 <header class="header">
     <nav class="nav">
         <div class="logo">
-            <a href="http://repun.github.io/" accesskey="h" title="MemoBlog (Alt + H)">MemoBlog</a>
+            <a href="http://repun.github.io/" accesskey="h" title="MLBlog (Alt + H)">MLBlog</a>
             <div class="logo-switches">
                 <button id="theme-toggle" accesskey="t" title="(Alt + T)">
                     <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
@@ -256,7 +256,7 @@ $$</p>
     </main>
     
 <footer class="footer">
-    <span>&copy; 2023 <a href="http://repun.github.io/">MemoBlog</a></span>
+    <span>&copy; 2023 <a href="http://repun.github.io/">MLBlog</a></span>
     <span>
         Powered by
         <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
