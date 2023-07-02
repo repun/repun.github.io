@@ -2,13 +2,16 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
   xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
-    <loc>http://repun.github.io/posts/amp/</loc>
-    <lastmod>2022-08-08T17:16:35+09:00</lastmod>
+    <loc>http://repun.github.io/posts/prefix_beam_search/</loc>
+    <lastmod>2022-10-16T20:47:24+09:00</lastmod>
   </url><url>
     <loc>http://repun.github.io/</loc>
-    <lastmod>2022-08-08T17:16:35+09:00</lastmod>
+    <lastmod>2022-10-16T20:47:24+09:00</lastmod>
   </url><url>
     <loc>http://repun.github.io/posts/</loc>
+    <lastmod>2022-10-16T20:47:24+09:00</lastmod>
+  </url><url>
+    <loc>http://repun.github.io/posts/amp/</loc>
     <lastmod>2022-08-08T17:16:35+09:00</lastmod>
   </url><url>
     <loc>http://repun.github.io/posts/attention_mechanism/</loc>
