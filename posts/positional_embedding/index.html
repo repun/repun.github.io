@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en" dir="auto">
+
+<head><meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="robots" content="index, follow">
+<title>Transformer에 사용되는 Positional Embedding | MLBlog</title>
+<meta name="keywords" content="">
+<meta name="description" content="이번에는 Transformer 구조에서 어떻게 인풋 시퀀스의 순서 정보를 받아들이는지에 대한 이야기를 해보도록 하겠습니다. Transformer에 사용되는 Self-Attention은 구조적으로 인풋 시퀀스의 순서를 구분하지 못합니다. 그래서 순서를 구분하기 위한 목적으로 시퀀스 각 벡터의 위치 정보를 넣은 임베딩 벡터를 사용하게 되는데 이걸 Positional Embedding(PE)이라고 부릅니다. 이 글에서는 이런 PE 기법들의 목적과 논리에 대해 정리해보도록 할게요. PE가 모델 내에서 무슨 역할을 어떻게 하는지, 어떤 논리와 이유를 가지고 디자인 되었는지를 이해하는데 도움 된다면 좋겠습니다.
+Transformer에 사용되는 Self-Attention에 대한 이야기부터 시작해보도록 합시다.">
+<meta name="author" content="">
+<link rel="canonical" href="http://repun.github.io/posts/positional_embedding/">
+<link crossorigin="anonymous" href="/assets/css/stylesheet.9d4f844eaa4f78f307fe7b60e91f30525e084db78986cd1660839e63f5a041cb.css" integrity="sha256-nU&#43;ETqpPePMH/ntg6R8wUl4ITbeJhs0WYIOeY/WgQcs=" rel="preload stylesheet" as="style">
+<script defer crossorigin="anonymous" src="/assets/js/highlight.f413e19d0714851f6474e7ee9632408e58ac146fbdbe62747134bea2fa3415e0.js" integrity="sha256-9BPhnQcUhR9kdOfuljJAjlisFG&#43;9vmJ0cTS&#43;ovo0FeA="
+    onload="hljs.initHighlightingOnLoad();"></script>
+<link rel="icon" href="http://repun.github.io/favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="http://repun.github.io/favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="http://repun.github.io/favicon-32x32.png">
+<link rel="apple-touch-icon" href="http://repun.github.io/apple-touch-icon.png">
+<link rel="mask-icon" href="http://repun.github.io/safari-pinned-tab.svg">
+<meta name="theme-color" content="#2e2e33">
+<meta name="msapplication-TileColor" content="#2e2e33">
+<noscript>
+    <style>
+        #theme-toggle,
+        .top-link {
+            display: none;
+        }
+
+    </style>
+    <style>
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --theme: rgb(29, 30, 32);
+                --entry: rgb(46, 46, 51);
+                --primary: rgb(218, 218, 219);
+                --secondary: rgb(155, 156, 157);
+                --tertiary: rgb(65, 66, 68);
+                --content: rgb(196, 196, 197);
+                --hljs-bg: rgb(46, 46, 51);
+                --code-bg: rgb(55, 56, 62);
+                --border: rgb(51, 51, 51);
+            }
+
+            .list {
+                background: var(--theme);
+            }
+
+            .list:not(.dark)::-webkit-scrollbar-track {
+                background: 0 0;
+            }
+
+            .list:not(.dark)::-webkit-scrollbar-thumb {
+                border-color: var(--theme);
+            }
+        }
+
+    </style>
+</noscript><script>
+MathJax = {
+  tex: {
+    inlineMath: [['$', '$'], ['\\(', '\\)']]
+  }
+};
+</script>
+<script id="MathJax-script" async
+  src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
+</script>
+  <meta property="og:title" content="Transformer에 사용되는 Positional Embedding" />
+<meta property="og:description" content="이번에는 Transformer 구조에서 어떻게 인풋 시퀀스의 순서 정보를 받아들이는지에 대한 이야기를 해보도록 하겠습니다. Transformer에 사용되는 Self-Attention은 구조적으로 인풋 시퀀스의 순서를 구분하지 못합니다. 그래서 순서를 구분하기 위한 목적으로 시퀀스 각 벡터의 위치 정보를 넣은 임베딩 벡터를 사용하게 되는데 이걸 Positional Embedding(PE)이라고 부릅니다. 이 글에서는 이런 PE 기법들의 목적과 논리에 대해 정리해보도록 할게요. PE가 모델 내에서 무슨 역할을 어떻게 하는지, 어떤 논리와 이유를 가지고 디자인 되었는지를 이해하는데 도움 된다면 좋겠습니다.
+Transformer에 사용되는 Self-Attention에 대한 이야기부터 시작해보도록 합시다." />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="http://repun.github.io/posts/positional_embedding/" /><meta property="article:section" content="posts" />
+<meta property="article:published_time" content="2024-02-21T09:52:08+09:00" />
+<meta property="article:modified_time" content="2024-02-21T09:52:08+09:00" />
+
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="Transformer에 사용되는 Positional Embedding"/>
+<meta name="twitter:description" content="이번에는 Transformer 구조에서 어떻게 인풋 시퀀스의 순서 정보를 받아들이는지에 대한 이야기를 해보도록 하겠습니다. Transformer에 사용되는 Self-Attention은 구조적으로 인풋 시퀀스의 순서를 구분하지 못합니다. 그래서 순서를 구분하기 위한 목적으로 시퀀스 각 벡터의 위치 정보를 넣은 임베딩 벡터를 사용하게 되는데 이걸 Positional Embedding(PE)이라고 부릅니다. 이 글에서는 이런 PE 기법들의 목적과 논리에 대해 정리해보도록 할게요. PE가 모델 내에서 무슨 역할을 어떻게 하는지, 어떤 논리와 이유를 가지고 디자인 되었는지를 이해하는데 도움 된다면 좋겠습니다.
+Transformer에 사용되는 Self-Attention에 대한 이야기부터 시작해보도록 합시다."/>
+
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position":  1 ,
+      "name": "Posts",
+      "item": "http://repun.github.io/posts/"
+    }, 
+    {
+      "@type": "ListItem",
+      "position":  2 ,
+      "name": "Transformer에 사용되는 Positional Embedding",
+      "item": "http://repun.github.io/posts/positional_embedding/"
+    }
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Transformer에 사용되는 Positional Embedding",
+  "name": "Transformer에 사용되는 Positional Embedding",
+  "description": "이번에는 Transformer 구조에서 어떻게 인풋 시퀀스의 순서 정보를 받아들이는지에 대한 이야기를 해보도록 하겠습니다. Transformer에 사용되는 Self-Attention은 구조적으로 인풋 시퀀스의 순서를 구분하지 못합니다. 그래서 순서를 구분하기 위한 목적으로 시퀀스 각 벡터의 위치 정보를 넣은 임베딩 벡터를 사용하게 되는데 이걸 Positional Embedding(PE)이라고 부릅니다. 이 글에서는 이런 PE 기법들의 목적과 논리에 대해 정리해보도록 할게요. PE가 모델 내에서 무슨 역할을 어떻게 하는지, 어떤 논리와 이유를 가지고 디자인 되었는지를 이해하는데 도움 된다면 좋겠습니다.\nTransformer에 사용되는 Self-Attention에 대한 이야기부터 시작해보도록 합시다.",
+  "keywords": [
+    
+  ],
+  "articleBody": "이번에는 Transformer 구조에서 어떻게 인풋 시퀀스의 순서 정보를 받아들이는지에 대한 이야기를 해보도록 하겠습니다. Transformer에 사용되는 Self-Attention은 구조적으로 인풋 시퀀스의 순서를 구분하지 못합니다. 그래서 순서를 구분하기 위한 목적으로 시퀀스 각 벡터의 위치 정보를 넣은 임베딩 벡터를 사용하게 되는데 이걸 Positional Embedding(PE)이라고 부릅니다. 이 글에서는 이런 PE 기법들의 목적과 논리에 대해 정리해보도록 할게요. PE가 모델 내에서 무슨 역할을 어떻게 하는지, 어떤 논리와 이유를 가지고 디자인 되었는지를 이해하는데 도움 된다면 좋겠습니다.\nTransformer에 사용되는 Self-Attention에 대한 이야기부터 시작해보도록 합시다. Transformer에서는 인풋 시퀀스 $x_{1}, x_{2}, x_{3}, \\cdots$ 가 있을 때, $W_q$, $W_k$, $W_v$행렬을 이용해 쿼리(Query), 키(Key), 그리고 값(Value) 벡터를 계산합니다. 그리고 쿼리와 키 벡터의 유사도를 구하고 유사도에 따라 값 벡터들의 가중평균을 반환하는 구조입니다. 어텐션 메커니즘에 대한 자세한 설명은 이전 글에서 설명한 적이 있으니 참고하면 좋습니다. $m$번째 쿼리 벡터와 $n$번째 키 벡터의 유사도는 Scaled Dot-Product 어텐션이라고 불리는 아래 수식으로 계산됩니다.\n$$\\begin{align} q_m \u0026= W_{q}x_m \\\\ k_n \u0026= W_{k}x_n \\\\ e_{m, n} \u0026= \\frac{q_{m}^{T} k_{n}}{\\sqrt{d}}\\tag{1}\\label{1} \\\\ \\alpha_{m, n} \u0026= \\frac{\\exp(e_{m, n})}{\\sum_{j} \\exp(e_{m, j})} \\end{align}$$\n그리고 $\\alpha_{m, n}$에 따라 값 벡터의 가중 평균을 반환하는 것이 Transformer의 Self-Attention입니다. 문제는 수식 $\\eqref{1}$대로 유사도를 구하면 시퀀스의 순서와는 상관 없이 같은 결과가 나온다는 점입니다. $m$과 $n$을 포함해 모든 시퀀스의 순서를 뒤섞는다고 해봅시다. $m=3$에서 $m=13$으로, $n=2$에서 $n=5$로 바뀌었다고 해도, 여전히 $\\alpha_{m, n}$의 값은 이전과 동일한 값이 계산 됩니다. 자연어로 예를 들면, “I love you\"라는 문장에서 두 단어 “I\"와 “love\"의 유사도나, “you I love\"라는 문장에서 두 단어 “I\"와 “love\"의 유사도가 서로 같다는 의미입니다. 순서가 바뀌여도 계산 결과는 같다고 해서, 이 특성을 Permutation Invariance 혹은 Order Agnostic 등으로 부릅니다.\n하지만 Transformer가 자연어와 같은 시퀀스 데이터, 그러니까 순서가 있는 데이터를 학습시키기 위해 제안되었다는 사실을 생각해보면 이 특성은 문제가 있습니다. 시퀀스 데이터는 당연히 그 순서가 매우 중요한 정보를 갖고 있을텐데, 순서를 구분할 수 없다는 건 모델이 그 정보를 학습할 수 없다는 뜻입니다. 그래서 순서를 구분해주기 위한 장치가 필요한데 이것이 바로 PE입니다.\n1. Absolute Positional Embedding PE의 기본적인 역할은 어텐션 구조에 들어가는 시퀀스 데이터의 순서를 구분해주는 것입니다. 가장 간단한 방법부터 생각해봅시다. 우선 시퀀스의 순서에 따라 서로 구분될 수 있도록 표시만 해줘도 충분할 겁니다. 예를 들어, 인풋 시퀀스에서 순서에 따라 차례대로 $0.1, 0.2, 0.3 \\cdots$ 을 더해본다고 해봅시다.\n$$\\begin{align} x_{1}’ \u0026= x_{1} + 0.1 \\\\ x_{2}’ \u0026= x_{2} + 0.2 \\\\ x_{3}’ \u0026= x_{3} + 0.3 \\\\ \u0026\\quad\\vdots \\end{align}$$\n그리고 새로운 인풋 시퀀스 $x’$를 이용해 쿼리, 키, 값 벡터를 계산하게 됩니다. 이렇게 순서에 따라 미리 정해진 값을 더해주는 방식을 Absolute PE라고 합니다. 이렇게 하면 순서가 바뀐 시퀀스가 들어왔을 때에도 PE를 더한 $x’$의 값이 달라질테니 최종적으로 계산되는 값도 달라집니다. 물론 이렇게 더해진 값들이 시퀀스의 순서를 나타낸다는 것을 신경망 모델이 학습 과정에서 잘 배울 수 있어야 합니다. 그렇게 된다면 우리가 원하는대로 시퀀스의 순서를 구분할 수 있는 Self-Attention 모델을 얻을 수 있을 거에요.\n가장 간단한 방법을 보여주기 위해 위 예시를 들었지만, 실재로는 이렇게 단순한 값을 더하는 방법은 잘 사용하지 않습니다. 물론 단순한 방법을 사용한다고 하더라도 모델이 순서 정보를 학습하지 못한다는 것은 아닙니다. 하지만 Transformer가 처음 제안됐던 논문을 보면 생각보다 복잡한 값을 더해 순서를 표시했다는 것을 알 수 있습니다.\n$$ p_{(m, i)} = \\begin{cases} \\sin(m/10000^{2t/d}), \u0026 \\text{if} \\quad i = 2t \\\\ \\cos(m/10000^{2t/d}), \u0026 \\text{if} \\quad i = 2t+1 \\end{cases} $$\n$m$은 시퀀스의 순서, $i$는 임베딩 벡터의 차원입니다. 사인함수를 활용해 나타냈기 때문에 Sinusodial PE라고 불리는 방법입니다. 각 차원에 따라 $\\sin$ 함수와 $\\cos$ 함수를 번갈아가면서 사용하는 모습이에요. 위 수식대로 64차원의 임베딩 벡터를 만든다면 순서에 따라 아래와 같은 모양이 됩니다.\nSinusodial PE\r뭔가 복잡한 모양입니다. 왜 굳이 이렇게 복잡하게 계산한 값을 더할까요? 저희가 위에서 생각했던 것 처럼 단순히 $0.1, 0.2, 0.3, \\cdots$을 더하는 방식보다 이 방식이 좋은 점이 무엇일까요? 논문에서는 아래와 같이 설명하고 있습니다.\nWe chose this function because we hypothesized it would allow the model to easily learn to attend by relative positions, since for any fixed offset $k$, $PE_{\\text{pos}+k}$ can be represented as a linear function of $PE_{\\text{pos}}$.\n해석해보면, $p_{m+k}$는 $p_{m}$의 선형 함수로 나타낼 수 있으니 모델이 인풋 시퀀스에서 상대적인 위치를 배우는데 유리할 것이라고 생각했답니다. 이게 대관절 무슨 뜻인지 이해하기 어렵습니다. $p_{m+k}$를 $p_{m}$의 선형 함수로 나타낼 수 있다는 건 뭐고, 그게 어떻게 모델이 시퀀스의 상대적인 위치를 배우는데 유리하다는 것일까요? 아니 애초에 상대적인 위치가 뭐길래 이걸 모델에게 학습시키려고 하고, 모델이 이걸 알면 뭐가 좋은걸까요? 하나씩 차근차근 살펴보도록 하겠습니다.\n우선 상대적인 위치라는 것은 인풋 시퀀스에서 벡터들 사이의 상대적인 위치 관계를 말합니다. 그러니까, 시퀀스 $x_{1}, x_{2}, x_{3}, \\cdots$가 있을 때, $x_{1}$이 첫번째, $x_{4}$가 네번째 벡터라는 것이 절대적인 위치라고 한다면, $x_{3}$이 $x_{1}$보다 2칸 뒤에 있고, $x_{7}$보다 4칸 앞에 있다라는 것이 상대적인 위치 관계가 되겠습니다.\n모델이 이렇게 상대적인 위치를 학습하는 것은 몇가지 유리한 점이 있는데, 첫번째는 시퀀스의 상대적인 위치에 따라 벡터의 의미가 변하는 경우가 있을 수 있기 때문입니다. 예를 들어, “I can’t bear this\"와 “bear can’t fly\"라는 두 문장이 있을 때, “bear\"라는 단어는 주변 단어들과의 상대적인 위치에 따라 의미가 완전히 변한다는 것을 알 수 있습니다. 전자는 “견디다\"라는 뜻의 동사고, 후자는 “곰\"이라는 뜻의 명사가 되지요. 이런 의미의 차이는 절대적인 위치, 즉, “bear\"라는 단어가 문장에서 세번째에 나온 단어인지, 첫번째에 나온 단어인지 보다는 주변 단어들과의 상대적인 위치 관계에 따라 결정됩니다. 그러므로 상대적인 위치를 학습하는 것이 시퀀스 전체의 의미를 제대로 파악하는 데에 도움이 됩니다.\n추가로 상대적인 위치를 알 수 있다면 학습 단계에서 보지 못했던 시퀀스 길이에 대해서도 일반화(Generalization)가 가능해집니다. 이걸 Length Generalization, 혹은 Length Extrapolation이라고 합니다. 예를 들어, 길이가 최대 500인 문장들로만 구성된 데이터셋으로 모델을 학습시켰는데, 어쩌다보니 이 모델로 길이 510인 문장을 처리해야할 일이 생겼다고 해봅시다. 상대적인 위치를 전혀 학습하지 못한 모델이라면 510이라는 처음 본 문장에 대해 제대로 계산할 수 없을 겁니다. 학습 때에는 등장하지 않았던 처음 보는, 510번째 위치의 PE 벡터값을 마주하게 될테니까요. PE 방법에 따라서는 아예 학습 길이를 넘어서는 PE가 정의되지 않는 경우도 있을 수 있습니다. 하지만 상대적인 위치를 학습한 모델이라면 주변 단어들과의 상대적인 위치 관계를 이용해 계산해낼 수 있을 것이라는 게 논리입니다. 왜냐면 10칸 떨어진, 4칸 떨어진 주변 단어들과의 관계는 이미 학습 단계에서 모델에게 노출되었을테니까요.\n이 Length Generalization은 좋은 성능의 모델을 만들기 위해 중요한 성질로 여겨집니다. 왜냐하면 학습 데이터셋의 길이가 무한하지 않기 때문입니다. 최대 길이가 500인 문장들로 구성된 데이터셋이라고 해도 모든 문장의 길이가 500은 아닐 겁니다. 대부분은 그보다 짧겠지요. 꼭 학습 데이터셋의 최대 길이를 넘어가는 문장이 아니더라도 기본적으로 모델은 짧은 문장들을 학습하고, 이를 통해 긴 문장의 의미를 제대로 파악할 수 있어야 합니다. 긴 문장들로만 구성된 데이터셋을 만드는 것은 비용도 비싸고, 학습 시간과 리소스도 많이 잡아먹겠지요. 그러므로 Length Generalization이 중요합니다.\n자, 상대적인 위치를 왜 학습시켜야 하는지 알았습니다. 이번에는 다시 Sinusodial PE로 돌아가서, $p_{m+k}$를 $p_{m}$의 선형 함수로 나타내는 것이 왜 상대적인 위치를 학습시키는데 도움이 되는지 생각해봅시다. 우선 $p_{m+k}$가 $p_{m}$의 선형 함수로 나타낼 수 있다는 건, $p_{m}$에 선형 변환(Linear Transformation)을 통해 $p_{m+k}$로 나타낼 수 있다는 뜻입니다. 즉, $p_{m+k} = T_{k} p_{m}$을 만족시키는 $d\\times d$ 크기의 어떤 행렬 $T_{k}$가 항상 존재한다는 뜻이지요.\n얼핏 생각해보면 그럴듯 합니다. 왜냐하면 Sinusodial PE는 삼각함수를 이용했고, 삼각함수는 일정 주기로 값이 계속 반복되는 특징이 있습니다. 그러니 임베딩 벡터 $p_{m}$을 적당한 각도로 회전시킨다면 뭔가 $p_{m+k}$로 만들 수 있을 것 같기도 합니다. 선형 변환을 통해 벡터를 회전시키기 위해서는 Rotation Matrix를 활용해볼 수 있습니다. 그리고 Rotation Matrix와 삼각함수의 덧셈정리를 이용하면 아래 수식이 성립한다는 것을 보일 수 있습니다.\n$$\\begin{align} \\begin{bmatrix} \\cos(k) \u0026 \\sin(k) \\\\ -\\sin(k) \u0026 \\cos(k) \\\\ \\end{bmatrix} \\begin{bmatrix} \\sin(m) \\\\ \\cos(m) \\\\ \\end{bmatrix} \u0026= \\begin{bmatrix} \\sin(m)\\cos(k) + \\cos(m)\\sin(k) \\\\ \\cos(m)\\cos(k) - \\sin(m)\\sin(k) \\\\ \\end{bmatrix} \\\\ \u0026= \\begin{bmatrix} \\sin(m+k) \\\\ \\cos(m+k) \\\\ \\end{bmatrix} \\\\ \\end{align}$$\n이 수식을 Sinusodial PE의 수식에 적용해보면 아래가 성립한다는 것을 알 수 있습니다. 간단한 표기를 위해 $\\lambda_t = 10000^{2t/d}$로 쓰도록 하겠습니다.\n$$ \\begin{bmatrix} \\sin(\\frac{m + k}{\\lambda_t}) \\\\ \\cos(\\frac{m + k}{\\lambda_t}) \\\\ \\end{bmatrix}= \\begin{bmatrix} \\cos(\\frac{k}{\\lambda_t}) \u0026 \\sin(\\frac{k}{\\lambda_t}) \\\\ -\\sin(\\frac{k}{\\lambda_t}) \u0026 \\cos(\\frac{k}{\\lambda_t}) \\\\ \\end{bmatrix} \\begin{bmatrix} \\sin(\\frac{m}{\\lambda_t}) \\\\ \\cos(\\frac{m}{\\lambda_t}) \\\\ \\end{bmatrix} $$\n위 성질을 이용하면 $p_{m+k} = T_{k} p_{m}$를 만족시키는 $T_{k}$를 만들 수 있습니다.\n$$ T_{k} = \\begin{bmatrix} \\cos(\\frac{k}{\\lambda_0}) \u0026 \\sin(\\frac{k}{\\lambda_0}) \u0026 0 \u0026 0 \u0026 \\cdots \u0026 0 \u0026 0 \\\\ -\\sin(\\frac{k}{\\lambda_0}) \u0026 \\cos(\\frac{k}{\\lambda_0}) \u0026 0 \u0026 0 \u0026 \\cdots \u0026 0 \u0026 0 \\\\ 0 \u0026 0 \u0026 \\cos(\\frac{k}{\\lambda_1}) \u0026 \\sin(\\frac{k}{\\lambda_1}) \u0026 \\cdots \u0026 0 \u0026 0 \\\\ 0 \u0026 0 \u0026 -\\sin(\\frac{k}{\\lambda_1}) \u0026 \\cos(\\frac{k}{\\lambda_1}) \u0026 \\cdots \u0026 0 \u0026 0 \\\\ \\vdots \u0026 \\vdots \u0026 \\vdots \u0026 \\vdots \u0026 \\ddots \u0026 \\vdots \u0026 \\vdots \\\\ 0 \u0026 0 \u0026 0 \u0026 0 \u0026 \\cdots \u0026 \\cos(\\frac{k}{\\lambda_{d/2}}) \u0026 \\sin(\\frac{k}{\\lambda_{d/2}}) \\\\ 0 \u0026 0 \u0026 0 \u0026 0 \u0026 \\cdots \u0026 -\\sin(\\frac{k}{\\lambda_{d/2}}) \u0026 \\cos(\\frac{k}{\\lambda_{d/2}}) \\\\ \\end{bmatrix} $$\n$T_{k}$는 $2 \\times 2$ 형태의 Transposed Rotation Matrix를 위치에 맞게 대각으로 배치해 둔 모양의 행렬이 됩니다. 비슷한 모양이 뒤에서 다시 한 번 나올 예정이니 기억해두면 좋습니다. 이 $T_{k}$를 이용하면 위에서 말한대로 $p_{m}$을 $p_{m+k}$로 변환할 수 있습니다. 그리고 수식의 모양을 보면 알 수 있듯이 $T_{k}$는 $p_{m}$과 $p_{m+k}$의 상대적인 위치 차이, $k$에 의해서 결정됩니다.\n이렇게 해서 $T_{k}$로 선형 변환을 할 수 있다는 부분은 알았습니다. 그런데 이게 모델이 상대적인 위치를 배우는 것과 무슨 상관이 있을까요? 쿼리 벡터와 키 벡터의 유사도가 어떻게 계산되는지 다시 생각해보겠습니다. 수식 $\\eqref{1}$을 보면 기본적으로 쿼리 벡터와 키 벡터의 내적을 통해 유사도를 구하게 됩니다. 다시 말해, $m$번째 쿼리 벡터와 $n$번째 키 벡터 사이의 유사도를 구하기 위해서는 $q_{m}^{T}k_{n}$를 계산해야 합니다. 그리고 이 과정에서 두 벡터에 반영된 PE 역시 간접적으로 내적될 겁니다. 그리고 우리가 방금 계산한 $T_{k}$를 이용하면 Sinusodial PE의 내적에는 아래와 같은 성질이 있다는 것을 알 수 있습니다.\n$$\\begin{align} p_{m}^{T} p_{n} \u0026= p_{m-n}^{T} T_{n}^{T} p_{n} \\\\ \u0026= p_{m-n}^{T} T_{n}^{T} T_{n} p_{0} \\\\ \u0026= p_{m-n}^{T} I p_{0} \\\\ \u0026= p_{m-n}^{T} p_{0} \\\\ \\end{align}$$\n즉, 서로 같은 간격으로 떨어져있는 쿼리와 키 사이의 유사도를 구할 때에는 PE의 내적도 같은 값을 가집니다. 그렇기 때문에 학습 과정에서 상대적인 위치의 의미를 배울 수 있습니다. 예를 들어, $q_{10}$, $k_{6}$의 관계가 $q_{6}$, $k_{2}$의 관계와 서로 연관이 있다는 사실을 모델이 학습하기 쉬워진다는 의미입니다. 둘 다 $4$만큼 떨어져있으니 PE의 내적이 같은 값을 가지고, 이는 모델이 $q_{10}^{T}k_{6}$과 $q_{6}^{T}k_{2}$를 유사한 값으로 계산하기 쉬워질 수 있습니다. 아래 그림을 보면 이 관계를 이해하기 쉬워집니다. $m$과 $n$이 서로 같은 간격만큼 떨어져있으면 $p_{m}^{T} p_{n}$가 서로 같은 값을 가지게 되어 아래와 같은 빗살 무늬 모양이 그려집니다.\nsinusodial PE의 내적 행렬\r위 그림을 보면 추가적으로 $m$과 $n$이 서로 가까울수록 $p_{m}^{T}p_{n}$의 값이 큰 경향이 있다는 것도 알 수 있습니다. $p_{m}^{T}p_{n}$ 값이 크다면 그만큼 해당 위치의 값 벡터가 가중치를 많이 받을 수 있습니다. 다시 말해, $m$과 $n$이 서로 가깝다면, $p_{m}^{T}p_{n}$가 커지니 $q_{m}^{T}k_{n}$도 커지기 쉬울테고, 결국 $v_{n}$이 더 많은 가중치를 받게 된다는 의미입니다. 이 성질은 상식적으로도 모델의 학습에 도움이 될 듯 합니다. 문장 안에서 서로 가까운 위치에 있는 단어들이 멀리 떨어진 단어들보다는 더 연관이 있을테니까요.\n2. Relative Positional Embedding 위에서 우리는 Sinusodial PE가 시퀀스 내의 상대적인 위치를 고려할 수 있게 디자인되었다는 사실을 알았습니다. $p_{m+k} = T_{k} p_{m}$를 만족하는 $T_{k}$가 존재하므로, 같은 거리에 대해 PE의 내적이 같은 값을 가지게 되어 모델이 상대적인 위치 관계를 학습하기 쉬워진다는 논리였습니다. 하지만 사실 자세히 따져보면 이 장치는 의도한대로 잘 동작하지 않을 수 있습니다. 수식 $\\eqref{1}$에서 Sinusodial PE를 적용한 $q_{m}^{T}k_{n}$ 부분을 자세히 살펴보도록 합시다.\n$$\\begin{align} q_{m}^{T}k_{n} \u0026= (W_{q}(x_{m} + p_{m}))^{T} W_{k}(x_{n} + p_{n}) \\\\ \u0026= x_{m}^{T}W_{q}^{T}W_{k}x_{n} + x_{m}^{T}W_{q}^{T}W_{k}p_{n} + p_{m}^{T}W_{q}^{T}W_{k}x_{n} + \\underline{p_{m}^{T}W_{q}^{T}W_{k}p_{n}}\\tag{2}\\label{2} \\end{align}$$\n밑줄로 표시된 네번째 항에서 PE가 간접적으로 내적된다는 것을 알 수 있습니다. 만약 $W_{q}^{T}W_{k}$가 $I$거나 이와 비슷하다면 우리가 원하는대로 $m-n$의 값에 따라 비슷한 값을 가질 수 있을 겁니다. 하지만 정말 이렇게 될지는 사실 알 수 없습니다. 학습 단계에서 $W_{q}$와 $W_{k}$는 PE 뿐 아니라 첫번째 항에서 볼 수 있듯이 시퀀스 자체 임베딩($x$)에도 영향받기 때문에, 시퀀스 순서 정보만을 학습하지는 않을 겁니다.\n또한 만약 $p_{m}^{T}W_{q}^{T}W_{k}p_{n}$ 항이 우리가 원하는대로 상대적인 위치 관계를 나타내도록 동작한다고 하더라도 그 이외 항들의 값에 따라 모델이 전체적인 $q_{m}$과 $k_{n}$의 유사도를 어떻게 계산할지 애매합니다. 특히, 2, 3번째 항의 경우 시퀀스 임베딩 벡터와 PE 벡터 사이의 관계를 나타내는데, 이 관계 자체가 크게 의미 없을 수 있습니다. 결론적으로 Sinusodial PE는 의도했던 바와는 다르게, 시퀀스 벡터들 사이의 상대적인 관계를 잘 나타내지 못할 수 있습니다. 아까 모델에게 시퀀스의 상대적인 위치를 학습시키면 여러가지 장점이 있다고 했는데, Sinusodial PE로는 이 장점들을 제대로 활용하기 어려울 수 있어요.\nRelative PE는 시퀀스의 상대적인 위치를 더 잘 학습시키기 위해 고안된 방법입니다. Sinusodial PE와는 다르게 인풋 시퀀스 $x$에 PE를 더해주는 방식이 아니라, $q_{m}$과 $k_{n}$의 유사도를 구하는 과정에 직접 PE를 더해주게 됩니다. Relative PE는 수식 $\\eqref{1}$을 변형해 아래와 같이 쿼리, 키 벡터의 유사도를 계산합니다.\n$$ e_{m, n} = \\frac{q_{m}^{T} (k_{n} + a_{m-n})}{\\sqrt{d}}\\tag{3}\\label{3} $$\n구글에서는 T5 모델을 제안할 때 아래와 같이 살짝 변형된 Relative PE를 사용했습니다.\n$$ e_{m, n} = \\frac{q_{m}^{T} k_{n}}{\\sqrt{d}} + a_{m-n}\\tag{4}\\label{4} $$\n위 두 방법 모두 $a_{m-n}$라는 학습 가능한 PE 벡터를 유사도 계산 과정 중에 직접 더해줍니다. $a_{m-n}$은 $m-n$, 즉, 쿼리 벡터와 키 벡터의 상대적인 위치 관계에 따라 결정됩니다. 예를 들면, $q_{10}$과 $k_{6}$ 사이의 유사도를 구할 때나, $q_{5}$와 $k_{1}$ 사이의 유사도를 구할 때나, 상대적인 거리가 $4$씩 떨어져있으므로 유사도 계산 과정에서 $a_{4}$라는 같은 벡터를 더해주는 겁니다. Sinusodial PE에서 PE의 내적을 이용해 간접적으로 상대적 위치 관계를 반영했던 것과 달리, 아예 상대적 위치 관계가 같으면 같은 PE를 더해버리는 방식이지요. 덕분에 아까 수식 $\\eqref{2}$의 2, 3번째 항처럼 시퀀스 임베딩과 PE 사이의 관계를 나타내는 항이 제거되었습니다. 또한 $W_{q}$와 $W_{k}$는 오직 시퀀스 임베딩 벡터($x$)의 정보를 학습하는데에 집중할 수 있게 되었습니다.\n여기에 더해 Relative PE에서는 $m-n$이 너무 커지거나 너무 작아지지 않도록 제한하는 방법을 사용합니다. $\\lvert m-n \\rvert$이 $l$보다 크다면 $l$로 고정하는 식입니다. 일정 간격 이상으로 너무 멀리 떨어져있는 벡터들 끼리는 서로 연관이 적을테니 $a_{l}$, 혹은 $a_{-l}$ 이라는 고정된 임베딩 값을 사용해도 괜찮을 것이라는 가정에서 나온 아이디어입니다. 이렇게 하면 우선 학습해야 할 PE가 줄어드니 학습 속도를 높일 수 있고, 학습된 모델이 인풋 시퀀스 길이에 영향을 받지 않게 됩니다. 아까 말했던 Length Generalization 관점에서 유리해지는 것이지요.\n예를 들어, 학습 단계에서 노출되지 않은 매우 긴 길이의 인풋 시퀀스가 모델에 들어왔다고 가정해봅시다. Sinusodial PE는 비록 상대적인 위치 관계를 고려해 디자인되었다고는 하지만, 어쨌든 학습 단계에서 모델이 보지 못했던 새로운 PE 벡터를 인풋 시퀀스에 더해주어야 합니다. 하지만 Relative PE는 $m-n$에 따라서만 PE 값이 정해지고, $\\lvert m-n \\rvert$이 $l$을 넘을 경우 고정된 PE 벡터를 사용하기 때문에 $2l + 1$개의 학습된 벡터로 어떤 길이의 인풋 시퀀스에도 적용할 수 있습니다.\n3. Rotary Positional Embedding Rotery PE, 줄여서 RoPE는 마찬가지로 시퀀스 사이의 상대적인 위치를 고려합니다. 하지만 쿼리, 키 벡터에 임베딩 벡터를 더하는게 아닌, Rotation Matrix를 곱해 회전시키는 방식으로 동작합니다. 즉, 기존 쿼리, 키 벡터를 위치에 따라 서로 다른 각도로 회전시켜 모델이 구분할 수 있도록 하겠다는 논리입니다. 수식으로는 아래와 같이 쿼리와 키 벡터에 $R$이라는 Rotation Matrix를 내적하는 형태가 됩니다.\n$$ e_{m, n} = \\frac{(R_{\\theta, m}q_{m})^{T} (R_{\\theta, n}k_{n})}{\\sqrt{d}} $$\n$d$차원의 쿼리, 키 벡터를 회전시키기 위해서는 $d \\times d$ 크기의 Rotation Matrix가 필요합니다. 하지만 이건 계산이 꽤 복잡합니다. 그래서 아래와 같은 Sparse 행렬을 이용해 간접적으로 Rotation Matrix를 만듭니다. 우리의 목적은 시퀀스의 순서를 구분하고 모델에게 상대적인 위치를 학습시킬 수 있는 PE를 만드는 것이지, 꼭 쿼리와 키 벡터 전체를 수학적으로 회전시켜야 하는 것은 아니니까요.\n$$ R_{\\theta, m} = \\begin{bmatrix} \\cos(m \\theta_{1}) \u0026 -\\sin(m \\theta_{1}) \u0026 0 \u0026 0 \u0026 \\cdots \u0026 0 \u0026 0 \\\\ \\sin(m \\theta_{1}) \u0026 \\cos(m \\theta_{1}) \u0026 0 \u0026 0 \u0026 \\cdots \u0026 0 \u0026 0 \\\\ 0 \u0026 0 \u0026 \\cos(m \\theta_{2}) \u0026 -\\sin(m \\theta_{2}) \u0026 \\cdots \u0026 0 \u0026 0 \\\\ 0 \u0026 0 \u0026 \\sin(m \\theta_{2}) \u0026 \\cos(m \\theta_{2}) \u0026 \\cdots \u0026 0 \u0026 0 \\\\ \\vdots \u0026 \\vdots \u0026 \\vdots \u0026 \\vdots \u0026 \\ddots \u0026 \\vdots \u0026 \\vdots \\\\ 0 \u0026 0 \u0026 0 \u0026 0 \u0026 \\cdots \u0026 \\cos(m \\theta_{d/2}) \u0026 -\\sin(m \\theta_{d/2}) \\\\ 0 \u0026 0 \u0026 0 \u0026 0 \u0026 \\cdots \u0026 \\sin(m \\theta_{d/2}) \u0026 \\cos(m \\theta_{d/2}) \\\\ \\end{bmatrix} $$\n아까 Sinusodial PE에서 $T_{k}$와 모양이 비슷합니다. 2차원씩 나누어서 2차원 Rotation Matrix를 대각에 따라 배치한 것이라고 생각하면 됩니다. 쿼리, 키 벡터 전체를 회전시키는 게 아니라, 2차원씩 나누어서 각각 회전시키게 됩니다. $\\theta$는 회전시키는 각도를 의미하는데, 차원에 따라 다른 각도를 사용합니다. 논문에서는 아래와 같은 $\\theta$를 제안하였습니다.\n$$\\theta_{i} = 10000^{-2(i-1)/d}$$\n$R_{\\theta, m}$를 이용하면 벡터를 2차원씩 나누어 $\\theta m$만큼 회전시키게 됩니다. 따라서 위치에 $m$에 따라 쿼리, 키 벡터가 회전하는 각도가 달라집니다. 모델은 학습 과정에서 벡터가 회전된 정도를 통해 위치 정보를 알 수 있게 될 겁니다.\n하지만 이게 어떻게 시퀀스 사이의 상대적인 위치를 나타내는지는 바로 와닿지 않습니다. 결국은 쿼리, 키 벡터에 각각 그 위치에 맞는 고정된 $R$을 곱하는 것인데, Relative보다는 Absolute PE에 더 가까운 느낌입니다. 하지만 아까와 마찬가지로 삼각함수의 덧셈정리를 이용하면 아래와 같은 성질이 있다는 것을 보일 수 있습니다. $R_{\\theta, m}$에서 1, 2번째 행과 열을 잘라 만든 $2 \\times 2$ 행렬을 $R_{\\theta, m}^{0:2}$라고 해보겠습니다.\n$$\\begin{align} R_{\\theta, m}^{0:2, T} R_{\\theta, n}^{0:2} \u0026= \\begin{bmatrix} \\cos(m \\theta) \u0026 \\sin(m \\theta) \\\\ -\\sin(m \\theta) \u0026 \\cos(m \\theta) \\end{bmatrix} \\begin{bmatrix} \\cos(n \\theta) \u0026 -\\sin(n \\theta) \\\\ \\sin(n \\theta) \u0026 \\cos(n \\theta) \\end{bmatrix} \\\\ \u0026= \\begin{bmatrix} \\cos(m\\theta)\\cos(n\\theta) + \\sin(m\\theta)\\sin(n\\theta) \u0026 \\sin(m\\theta)\\cos(n\\theta) - \\cos(m\\theta)\\sin(n\\theta) \\\\ - \\sin(m\\theta) \\cos(n\\theta) + \\cos(m\\theta)\\sin(n\\theta) \u0026 \\cos(m\\theta)cos(n\\theta) + \\sin(m\\theta)\\sin(n\\theta) \\end{bmatrix} \\\\ \u0026= \\begin{bmatrix} \\cos(\\theta(m-n)) \u0026 \\sin(\\theta(m-n)) \\\\ - \\sin(\\theta(m-n)) \u0026 \\cos(\\theta(m-n)) \\end{bmatrix} \\\\ \u0026= R_{\\theta, m-n}^{0:2} \\end{align}$$\n전체 $R$에서 첫 2개 Column과 Row인 $2 \\times 2$ 모양에 대해서만 계산했지만, 어차피 전체 $R$은 이 모양이 반복되는 구조이니 결과는 같습니다. 그러니까 Sinusodial PE때와 마찬가지로 시퀀스 벡터들 사이의 상대적인 위치 관계 $m-n$에 따라서 PE의 내적이 같은 값을 가지는 구조가 됩니다. 하지만 이번에는 Sinusodial PE 때와는 달리, 이 모양이 아래와 같이 직접적으로 유사도 계산에 등장하게 됩니다.\n$$\\begin{align} e_{m, n} \u0026= \\frac{(R_{\\theta, m}q_{m})^{T} (R_{\\theta, n}k_{n})}{\\sqrt{d}} \\\\ \u0026= \\frac{q_{m}^{T} R_{\\theta, m}^{T} R_{\\theta, n} k_{n}}{\\sqrt{d}} \\end{align}$$\n$m-n$이 같으면 결국 $q$와 $k$의 유사도 계산 과정에 같은 위치 정보가 들어가게 됩니다. 시퀀스, 혹은 Attention Matrix에 PE를 더하는 형태가 아닌, 곱하는 형태이기 때문에 아까와 다르게 위와 같은 모양이 유도됩니다. 논문에서는 기존에 제안된 방법들과 같이 PE를 더하는 형태는 Self-Attention 계산 과정 중 수식 $\\eqref{2}$, $\\eqref{3}$, $\\eqref{4}$와 같이 전체 항의 모양을 변화시키지만, RoPE와 같이 곱하는 형태로 PE를 적용하면 식의 모양을 바꾸지 않고 자연스럽게 위치 정보를 전달할 수 있다고 설명하고 있습니다.\n4. No Positional Embedding NoPE는 말 그대로 PE를 사용하지 않는다는 의미입니다. 하지만 처음에 분명 Self-Attention 구조는 Permutation Invariance라는 특성을 가지고 있어서 PE 없이는 시퀀스의 순서를 파악하지 못한다고 했었지요. 그러니 PE를 사용하지 않는다면 당연히 모델의 성능이 떨어질 겁니다. 하지만 Attention Mask를 사용하는 Transformer Decoder 구조에서는 이 Permutation Invariance 특성이 사라지게 됩니다. 아래 그림과 같습니다.\nTransformer 디코더의 어텐션\rTransformer Decoder 구조에서는 Mask를 이용해 계산되는 시퀀스의 앞 부분만 참조하게 됩니다. 즉, $h_{T}$를 계산할 때에는, $x_{1}, x_{2}, \\cdots, x_{T}$ 사이의 유사도만 계산하고, $x_{T+1}$과 그 이후 벡터는 고려하지 않습니다. 직관적으로 생각해보아도, 이 구조에서는 시퀀스의 순서가 바뀌면 Self-Attention 계산 결과가 달라진다는 걸 알 수 있습니다. 따라서 PE를 사용하지 않더라도 모델이 위치 관계를 간접적으로 유추해낼 수 있다는 것이 NoPE의 설명입니다.\nTransformer Decoder 구조에서 PE를 쓰지 않더라도 모델이 위치 관계를 학습한다는 이야기는 여러 논문에서 실험적으로 관찰이 되었습니다. 그리고 이 논문에서는 Transformer Decoder Layer가 2개 이상인 구조에서 모델이 시퀀스의 절대적인 위치와 상대적인 위치를 모두 알아낼 수 있는 해가 존재한다는 것을 정리했습니다.\n5. 마무리 이렇게 여러 PE 방법들의 논리를 살펴보았습니다. 이 외에도 여러 가지 논문들에서 다양한 PE 방법들을 제시하고 있고, 기본적으로 이루고자 하는 목적은 같습니다. 논리도 비슷해요.\n하지만 논리야 어쨌든 실전에서는 어떤 방법을 사용해야 가장 좋은 모델을 얻을 수 있을지, 즉, 성능이 중요할 겁니다. 일반적으로 Sinusodial PE는 상대적인 위치 관계를 잘 파악하지 못하지만, 고정된 값을 더하는 만큼 구현이 간단하여 계산 시간이 빠르고, Relative PE와 RoPE는 반대로 성능이 좋으나 추가적인 연산이 필요하므로 속도가 조금 느린 반면, NoPE는 속도도 빠르고, Autoregressive 구조일 경우에 명시적인 PE를 사용하는 것과 동등하거나 그 이상의 성능이 나온다는 연구 결과들이 있습니다.\n성능에 대한 자세한 내용들은 이 글에서 다룬 논문들을 포함해 여러 논문들에 다양한 벤치마크와 성능 지표들이 정리되어 있으니 참고하면 되겠습니다. 여기서는 일부러 성능 얘기를 하지 않았었는데, 이 글의 목적이 “어떤 PE가 가장 좋은가?“를 알아보기보다는 “PE가 어떤 목적과 논리를 가지고 설계, 제안되었는가?“를 정리하고 싶었기 때문입니다. Transformer 구조와 PE는 활발한 연구가 이루어지고 있는 분야이기 때문에, 앞으로도 계속 새로운 기법들이 제안될 겁니다. 이 글에서 소개한 기법들은 곧 사용되지 않을 수도 있어요. 하지만 PE의 기본적인 논리를 알아둔다면 앞으로 제안될 방법론들을 이해하고 적용하는 데에 분명 도움이 될 겁니다.\n참고 자료 Vaswani et al. “Attention Is All You Need” Amirhossein Kazemnejad “Transformer Architecture: The Positional Encoding” Shaw et al. “Self-Attention with Relative Position Representations” Su el al. “RoFormer: Enhanced Transformer with Rotary Position Embedding” Kazemnejad et al. “The Impact of Positional Encoding on Length Generalization in Transformers” Ke et al. “Rethinking Positional Encoding in Language Pre-training” Raffel et al. “Exploring the Limits of Transfer Learning with a Unified Text-to-Text Transformer” Haviv et al. “Transformer Language Models without Positional Encodings Still Learn Positional Information” Tsai et al. “Transformer Dissection: A Unified Understanding of Transformer’s Attention via the Lens of Kernel” Irie et al. “Language Modeling with Deep Transformers” Nikolas Adaloglou “How Positional Embeddings work in Self-Attention” ",
+  "wordCount" : "3191",
+  "inLanguage": "en",
+  "datePublished": "2024-02-21T09:52:08+09:00",
+  "dateModified": "2024-02-21T09:52:08+09:00",
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "http://repun.github.io/posts/positional_embedding/"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "MLBlog",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "http://repun.github.io/favicon.ico"
+    }
+  }
+}
+</script>
+</head>
+
+<body class="" id="top">
+<script>
+    if (localStorage.getItem("pref-theme") === "dark") {
+        document.body.classList.add('dark');
+    } else if (localStorage.getItem("pref-theme") === "light") {
+        document.body.classList.remove('dark')
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.body.classList.add('dark');
+    }
+
+</script>
+
+<header class="header">
+    <nav class="nav">
+        <div class="logo">
+            <a href="http://repun.github.io/" accesskey="h" title="MLBlog (Alt + H)">MLBlog</a>
+            <div class="logo-switches">
+                <button id="theme-toggle" accesskey="t" title="(Alt + T)">
+                    <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <ul id="menu">
+        </ul>
+    </nav>
+</header>
+<main class="main">
+
+<article class="post-single">
+  <header class="post-header">
+    
+    <h1 class="post-title">
+      Transformer에 사용되는 Positional Embedding
+    </h1>
+    <div class="post-meta"><span title='2024-02-21 09:52:08 +0900 KST'>February 21, 2024</span>
+
+</div>
+  </header> <div class="toc">
+    <details >
+        <summary accesskey="c" title="(Alt + C)">
+            <span class="details">Table of Contents</span>
+        </summary>
+
+        <div class="inner"><ul>
+                <li>
+                    <a href="#1-absolute-positional-embedding" aria-label="1. Absolute Positional Embedding">1. Absolute Positional Embedding</a></li>
+                <li>
+                    <a href="#2-relative-positional-embedding" aria-label="2. Relative Positional Embedding">2. Relative Positional Embedding</a></li>
+                <li>
+                    <a href="#3-rotary-positional-embedding" aria-label="3. Rotary Positional Embedding">3. Rotary Positional Embedding</a></li>
+                <li>
+                    <a href="#4-no-positional-embedding" aria-label="4. No Positional Embedding">4. No Positional Embedding</a></li>
+                <li>
+                    <a href="#5-%eb%a7%88%eb%ac%b4%eb%a6%ac" aria-label="5. 마무리">5. 마무리</a></li>
+                <li>
+                    <a href="#%ec%b0%b8%ea%b3%a0-%ec%9e%90%eb%a3%8c" aria-label="참고 자료">참고 자료</a>
+                </li>
+            </ul>
+        </div>
+    </details>
+</div>
+
+  <div class="post-content"><p>이번에는 Transformer 구조에서 어떻게 인풋 시퀀스의 순서 정보를 받아들이는지에 대한 이야기를 해보도록 하겠습니다. Transformer에 사용되는 Self-Attention은 구조적으로 인풋 시퀀스의 순서를 구분하지 못합니다. 그래서 순서를 구분하기 위한 목적으로 시퀀스 각 벡터의 위치 정보를 넣은 임베딩 벡터를 사용하게 되는데 이걸 Positional Embedding(PE)이라고 부릅니다. 이 글에서는 이런 PE 기법들의 목적과 논리에 대해 정리해보도록 할게요. PE가 모델 내에서 무슨 역할을 어떻게 하는지, 어떤 논리와 이유를 가지고 디자인 되었는지를 이해하는데 도움 된다면 좋겠습니다.</p>
+<p>Transformer에 사용되는 Self-Attention에 대한 이야기부터 시작해보도록 합시다. Transformer에서는 인풋 시퀀스 $x_{1}, x_{2}, x_{3}, \cdots$ 가 있을 때, $W_q$, $W_k$, $W_v$행렬을 이용해 쿼리(Query), 키(Key), 그리고 값(Value) 벡터를 계산합니다. 그리고 쿼리와 키 벡터의 유사도를 구하고 유사도에 따라 값 벡터들의 가중평균을 반환하는 구조입니다. 어텐션 메커니즘에 대한 자세한 설명은 <a href="https://repun.github.io/posts/attention_mechanism/">이전 글</a>에서 설명한 적이 있으니 참고하면 좋습니다. $m$번째 쿼리 벡터와 $n$번째 키 벡터의 유사도는 Scaled Dot-Product 어텐션이라고 불리는 아래 수식으로 계산됩니다.</p>
+<p>$$\begin{align}
+q_m &amp;= W_{q}x_m \\
+k_n &amp;= W_{k}x_n \\
+e_{m, n} &amp;= \frac{q_{m}^{T} k_{n}}{\sqrt{d}}\tag{1}\label{1} \\
+\alpha_{m, n} &amp;= \frac{\exp(e_{m, n})}{\sum_{j} \exp(e_{m, j})}
+\end{align}$$</p>
+<p>그리고 $\alpha_{m, n}$에 따라 값 벡터의 가중 평균을 반환하는 것이 Transformer의 Self-Attention입니다. 문제는 수식 $\eqref{1}$대로 유사도를 구하면 시퀀스의 순서와는 상관 없이 같은 결과가 나온다는 점입니다. $m$과 $n$을 포함해 모든 시퀀스의 순서를 뒤섞는다고 해봅시다. $m=3$에서 $m=13$으로, $n=2$에서 $n=5$로 바뀌었다고 해도, 여전히 $\alpha_{m, n}$의 값은 이전과 동일한 값이 계산 됩니다. 자연어로 예를 들면, &ldquo;I love you&quot;라는 문장에서 두 단어 &ldquo;I&quot;와 &ldquo;love&quot;의 유사도나, &ldquo;you I love&quot;라는 문장에서 두 단어 &ldquo;I&quot;와 &ldquo;love&quot;의 유사도가 서로 같다는 의미입니다. 순서가 바뀌여도 계산 결과는 같다고 해서, 이 특성을 Permutation Invariance 혹은 Order Agnostic 등으로 부릅니다.</p>
+<p>하지만 Transformer가 자연어와 같은 시퀀스 데이터, 그러니까 순서가 있는 데이터를 학습시키기 위해 제안되었다는 사실을 생각해보면 이 특성은 문제가 있습니다. 시퀀스 데이터는 당연히 그 순서가 매우 중요한 정보를 갖고 있을텐데, 순서를 구분할 수 없다는 건 모델이 그 정보를 학습할 수 없다는 뜻입니다. 그래서 순서를 구분해주기 위한 장치가 필요한데 이것이 바로 PE입니다.</p>
+<h3 id="1-absolute-positional-embedding">1. Absolute Positional Embedding<a hidden class="anchor" aria-hidden="true" href="#1-absolute-positional-embedding">#</a></h3>
+<p>PE의 기본적인 역할은 어텐션 구조에 들어가는 시퀀스 데이터의 순서를 구분해주는 것입니다. 가장 간단한 방법부터 생각해봅시다. 우선 시퀀스의 순서에 따라 서로 구분될 수 있도록 표시만 해줘도 충분할 겁니다. 예를 들어, 인풋 시퀀스에서 순서에 따라 차례대로 $0.1, 0.2, 0.3 \cdots$ 을 더해본다고 해봅시다.</p>
+<p>$$\begin{align}
+x_{1}&rsquo; &amp;= x_{1} + 0.1 \\
+x_{2}&rsquo; &amp;= x_{2} + 0.2 \\
+x_{3}&rsquo; &amp;= x_{3} + 0.3 \\
+&amp;\quad\vdots
+\end{align}$$</p>
+<p>그리고 새로운 인풋 시퀀스 $x&rsquo;$를 이용해 쿼리, 키, 값 벡터를 계산하게 됩니다. 이렇게 순서에 따라 미리 정해진 값을 더해주는 방식을 Absolute PE라고 합니다. 이렇게 하면 순서가 바뀐 시퀀스가 들어왔을 때에도 PE를 더한 $x&rsquo;$의 값이 달라질테니 최종적으로 계산되는 값도 달라집니다. 물론 이렇게 더해진 값들이 시퀀스의 순서를 나타낸다는 것을 신경망 모델이 학습 과정에서 잘 배울 수 있어야 합니다. 그렇게 된다면 우리가 원하는대로 시퀀스의 순서를 구분할 수 있는 Self-Attention 모델을 얻을 수 있을 거에요.</p>
+<p>가장 간단한 방법을 보여주기 위해 위 예시를 들었지만, 실재로는 이렇게 단순한 값을 더하는 방법은 잘 사용하지 않습니다. 물론 단순한 방법을 사용한다고 하더라도 모델이 순서 정보를 학습하지 못한다는 것은 아닙니다. 하지만 Transformer가 처음 제안됐던 <a href="https://arxiv.org/abs/1706.03762">논문</a>을 보면 생각보다 복잡한 값을 더해 순서를 표시했다는 것을 알 수 있습니다.</p>
+<p>$$
+p_{(m, i)} =
+\begin{cases}
+\sin(m/10000^{2t/d}), &amp; \text{if} \quad i = 2t \\
+\cos(m/10000^{2t/d}), &amp; \text{if} \quad i = 2t+1
+\end{cases}
+$$</p>
+<p>$m$은 시퀀스의 순서, $i$는 임베딩 벡터의 차원입니다. 사인함수를 활용해 나타냈기 때문에 Sinusodial PE라고 불리는 방법입니다. 각 차원에 따라 $\sin$ 함수와 $\cos$ 함수를 번갈아가면서 사용하는 모습이에요. 위 수식대로 64차원의 임베딩 벡터를 만든다면 순서에 따라 아래와 같은 모양이 됩니다.</p>
+<p>
+
+<figure>
+  <img src="/posts/images/sinusodial_pe.png" alt="sinusodial_pe.png" loading="lazy" />
+  <figcaption style="text-align: center; color: gray">Sinusodial PE</figcaption>
+</figure>
+</p>
+<p>뭔가 복잡한 모양입니다. 왜 굳이 이렇게 복잡하게 계산한 값을 더할까요? 저희가 위에서 생각했던 것 처럼 단순히 $0.1, 0.2, 0.3, \cdots$을 더하는 방식보다 이 방식이 좋은 점이 무엇일까요? <a href="https://arxiv.org/abs/1706.03762">논문</a>에서는 아래와 같이 설명하고 있습니다.</p>
+<blockquote>
+<p>We chose this function because we hypothesized it would allow the model to easily learn to attend by relative positions, since for any fixed offset $k$, $PE_{\text{pos}+k}$ can be represented as a linear function of $PE_{\text{pos}}$.</p>
+</blockquote>
+<p>해석해보면, $p_{m+k}$는 $p_{m}$의 선형 함수로 나타낼 수 있으니 모델이 인풋 시퀀스에서 <strong>상대적인</strong> 위치를 배우는데 유리할 것이라고 생각했답니다. 이게 대관절 무슨 뜻인지 이해하기 어렵습니다. $p_{m+k}$를 $p_{m}$의 선형 함수로 나타낼 수 있다는 건 뭐고, 그게 어떻게 모델이 시퀀스의 상대적인 위치를 배우는데 유리하다는 것일까요? 아니 애초에 상대적인 위치가 뭐길래 이걸 모델에게 학습시키려고 하고, 모델이 이걸 알면 뭐가 좋은걸까요? 하나씩 차근차근 살펴보도록 하겠습니다.</p>
+<p>우선 상대적인 위치라는 것은 인풋 시퀀스에서 벡터들 사이의 상대적인 위치 관계를 말합니다. 그러니까, 시퀀스 $x_{1}, x_{2}, x_{3}, \cdots$가 있을 때, $x_{1}$이 첫번째, $x_{4}$가 네번째 벡터라는 것이 절대적인 위치라고 한다면, $x_{3}$이 $x_{1}$보다 2칸 뒤에 있고, $x_{7}$보다 4칸 앞에 있다라는 것이 상대적인 위치 관계가 되겠습니다.</p>
+<p>모델이 이렇게 상대적인 위치를 학습하는 것은 몇가지 유리한 점이 있는데, 첫번째는 시퀀스의 상대적인 위치에 따라 벡터의 의미가 변하는 경우가 있을 수 있기 때문입니다. 예를 들어, &ldquo;I can&rsquo;t bear this&quot;와 &ldquo;bear can&rsquo;t fly&quot;라는 두 문장이 있을 때, &ldquo;bear&quot;라는 단어는 주변 단어들과의 상대적인 위치에 따라 의미가 완전히 변한다는 것을 알 수 있습니다. 전자는 &ldquo;견디다&quot;라는 뜻의 동사고, 후자는 &ldquo;곰&quot;이라는 뜻의 명사가 되지요. 이런 의미의 차이는 절대적인 위치, 즉, &ldquo;bear&quot;라는 단어가 문장에서 세번째에 나온 단어인지, 첫번째에 나온 단어인지 보다는 주변 단어들과의 상대적인 위치 관계에 따라 결정됩니다. 그러므로 상대적인 위치를 학습하는 것이 시퀀스 전체의 의미를 제대로 파악하는 데에 도움이 됩니다.</p>
+<p>추가로 상대적인 위치를 알 수 있다면 학습 단계에서 보지 못했던 시퀀스 길이에 대해서도 일반화(Generalization)가 가능해집니다. 이걸 Length Generalization, 혹은 Length Extrapolation이라고 합니다. 예를 들어, 길이가 최대 500인 문장들로만 구성된 데이터셋으로 모델을 학습시켰는데, 어쩌다보니 이 모델로 길이 510인 문장을 처리해야할 일이 생겼다고 해봅시다. 상대적인 위치를 전혀 학습하지 못한 모델이라면 510이라는 처음 본 문장에 대해 제대로 계산할 수 없을 겁니다. 학습 때에는 등장하지 않았던 처음 보는, 510번째 위치의 PE 벡터값을 마주하게 될테니까요. PE 방법에 따라서는 아예 학습 길이를 넘어서는 PE가 정의되지 않는 경우도 있을 수 있습니다. 하지만 상대적인 위치를 학습한 모델이라면 주변 단어들과의 상대적인 위치 관계를 이용해 계산해낼 수 있을 것이라는 게 논리입니다. 왜냐면 10칸 떨어진, 4칸 떨어진 주변 단어들과의 관계는 이미 학습 단계에서 모델에게 노출되었을테니까요.</p>
+<p>이 Length Generalization은 좋은 성능의 모델을 만들기 위해 중요한 성질로 여겨집니다. 왜냐하면 학습 데이터셋의 길이가 무한하지 않기 때문입니다. 최대 길이가 500인 문장들로 구성된 데이터셋이라고 해도 모든 문장의 길이가 500은 아닐 겁니다. 대부분은 그보다 짧겠지요. 꼭 학습 데이터셋의 최대 길이를 넘어가는 문장이 아니더라도 기본적으로 모델은 짧은 문장들을 학습하고, 이를 통해 긴 문장의 의미를 제대로 파악할 수 있어야 합니다. 긴 문장들로만 구성된 데이터셋을 만드는 것은 비용도 비싸고, 학습 시간과 리소스도 많이 잡아먹겠지요. 그러므로 Length Generalization이 중요합니다.</p>
+<p>자, 상대적인 위치를 왜 학습시켜야 하는지 알았습니다. 이번에는 다시 Sinusodial PE로 돌아가서, $p_{m+k}$를 $p_{m}$의 선형 함수로 나타내는 것이 왜 상대적인 위치를 학습시키는데 도움이 되는지 생각해봅시다. 우선 $p_{m+k}$가 $p_{m}$의 선형 함수로 나타낼 수 있다는 건, $p_{m}$에 선형 변환(Linear Transformation)을 통해 $p_{m+k}$로 나타낼 수 있다는 뜻입니다. 즉, $p_{m+k} = T_{k} p_{m}$을 만족시키는 $d\times d$ 크기의 어떤 행렬 $T_{k}$가 항상 존재한다는 뜻이지요.</p>
+<p>얼핏 생각해보면 그럴듯 합니다. 왜냐하면 Sinusodial PE는 삼각함수를 이용했고, 삼각함수는 일정 주기로 값이 계속 반복되는 특징이 있습니다. 그러니 임베딩 벡터 $p_{m}$을 적당한 각도로 회전시킨다면 뭔가 $p_{m+k}$로 만들 수 있을 것 같기도 합니다. 선형 변환을 통해 벡터를 회전시키기 위해서는 <a href="https://en.wikipedia.org/wiki/Rotation_matrix">Rotation Matrix</a>를 활용해볼 수 있습니다. 그리고 Rotation Matrix와 <a href="https://ko.wikipedia.org/wiki/%EC%82%BC%EA%B0%81%ED%95%A8%EC%88%98%EC%9D%98_%EB%8D%A7%EC%85%88%EC%A0%95%EB%A6%AC">삼각함수의 덧셈정리</a>를 이용하면 아래 수식이 성립한다는 것을 보일 수 있습니다.</p>
+<p>$$\begin{align}
+\begin{bmatrix}
+\cos(k) &amp; \sin(k) \\
+-\sin(k) &amp; \cos(k) \\
+\end{bmatrix}
+\begin{bmatrix}
+\sin(m) \\
+\cos(m) \\
+\end{bmatrix} &amp;=
+\begin{bmatrix}
+\sin(m)\cos(k) + \cos(m)\sin(k) \\
+\cos(m)\cos(k) - \sin(m)\sin(k) \\
+\end{bmatrix} \\
+&amp;= \begin{bmatrix}
+\sin(m+k) \\
+\cos(m+k) \\
+\end{bmatrix} \\
+\end{align}$$</p>
+<p>이 수식을 Sinusodial PE의 수식에 적용해보면 아래가 성립한다는 것을 알 수 있습니다. 간단한 표기를 위해 $\lambda_t = 10000^{2t/d}$로 쓰도록 하겠습니다.</p>
+<p>$$
+\begin{bmatrix}
+\sin(\frac{m + k}{\lambda_t}) \\
+\cos(\frac{m + k}{\lambda_t}) \\
+\end{bmatrix}=
+\begin{bmatrix}
+\cos(\frac{k}{\lambda_t}) &amp; \sin(\frac{k}{\lambda_t}) \\
+-\sin(\frac{k}{\lambda_t}) &amp; \cos(\frac{k}{\lambda_t}) \\
+\end{bmatrix}
+\begin{bmatrix}
+\sin(\frac{m}{\lambda_t}) \\
+\cos(\frac{m}{\lambda_t}) \\
+\end{bmatrix}
+$$</p>
+<p>위 성질을 이용하면 $p_{m+k} = T_{k} p_{m}$를 만족시키는 $T_{k}$를 만들 수 있습니다.</p>
+<p>$$
+T_{k} = \begin{bmatrix}
+\cos(\frac{k}{\lambda_0}) &amp; \sin(\frac{k}{\lambda_0}) &amp; 0 &amp; 0 &amp; \cdots &amp; 0 &amp; 0 \\
+-\sin(\frac{k}{\lambda_0}) &amp; \cos(\frac{k}{\lambda_0}) &amp; 0 &amp; 0 &amp; \cdots &amp; 0 &amp; 0 \\
+0 &amp; 0 &amp; \cos(\frac{k}{\lambda_1}) &amp; \sin(\frac{k}{\lambda_1}) &amp; \cdots &amp; 0 &amp; 0 \\
+0 &amp; 0 &amp; -\sin(\frac{k}{\lambda_1}) &amp; \cos(\frac{k}{\lambda_1}) &amp; \cdots &amp; 0 &amp; 0 \\
+\vdots &amp; \vdots &amp; \vdots &amp; \vdots &amp; \ddots &amp; \vdots &amp; \vdots \\
+0 &amp; 0 &amp; 0 &amp; 0 &amp; \cdots &amp; \cos(\frac{k}{\lambda_{d/2}}) &amp; \sin(\frac{k}{\lambda_{d/2}}) \\
+0 &amp; 0 &amp; 0 &amp; 0 &amp; \cdots &amp; -\sin(\frac{k}{\lambda_{d/2}}) &amp; \cos(\frac{k}{\lambda_{d/2}}) \\
+\end{bmatrix}
+$$</p>
+<p>$T_{k}$는 $2 \times 2$ 형태의 Transposed Rotation Matrix를 위치에 맞게 대각으로 배치해 둔 모양의 행렬이 됩니다. 비슷한 모양이 뒤에서 다시 한 번 나올 예정이니 기억해두면 좋습니다. 이 $T_{k}$를 이용하면 위에서 말한대로 $p_{m}$을 $p_{m+k}$로 변환할 수 있습니다. 그리고 수식의 모양을 보면 알 수 있듯이 $T_{k}$는 $p_{m}$과 $p_{m+k}$의 상대적인 위치 차이, $k$에 의해서 결정됩니다.</p>
+<p>이렇게 해서 $T_{k}$로 선형 변환을 할 수 있다는 부분은 알았습니다. 그런데 이게 모델이 상대적인 위치를 배우는 것과 무슨 상관이 있을까요? 쿼리 벡터와 키 벡터의 유사도가 어떻게 계산되는지 다시 생각해보겠습니다. 수식 $\eqref{1}$을 보면 기본적으로 쿼리 벡터와 키 벡터의 내적을 통해 유사도를 구하게 됩니다. 다시 말해, $m$번째 쿼리 벡터와 $n$번째 키 벡터 사이의 유사도를 구하기 위해서는 $q_{m}^{T}k_{n}$를 계산해야 합니다. 그리고 이 과정에서 두 벡터에 반영된 PE 역시 간접적으로 내적될 겁니다. 그리고 우리가 방금 계산한 $T_{k}$를 이용하면 Sinusodial PE의 내적에는 아래와 같은 성질이 있다는 것을 알 수 있습니다.</p>
+<p>$$\begin{align}
+p_{m}^{T} p_{n} &amp;= p_{m-n}^{T} T_{n}^{T} p_{n} \\
+&amp;= p_{m-n}^{T} T_{n}^{T} T_{n} p_{0} \\
+&amp;= p_{m-n}^{T} I p_{0} \\
+&amp;= p_{m-n}^{T} p_{0} \\
+\end{align}$$</p>
+<p>즉, 서로 같은 간격으로 떨어져있는 쿼리와 키 사이의 유사도를 구할 때에는 PE의 내적도 같은 값을 가집니다. 그렇기 때문에 학습 과정에서 상대적인 위치의 의미를 배울 수 있습니다. 예를 들어, $q_{10}$, $k_{6}$의 관계가 $q_{6}$, $k_{2}$의 관계와 서로 연관이 있다는 사실을 모델이 학습하기 쉬워진다는 의미입니다. 둘 다 $4$만큼 떨어져있으니 PE의 내적이 같은 값을 가지고, 이는 모델이 $q_{10}^{T}k_{6}$과 $q_{6}^{T}k_{2}$를 유사한 값으로 계산하기 쉬워질 수 있습니다. 아래 그림을 보면 이 관계를 이해하기 쉬워집니다. $m$과 $n$이 서로 같은 간격만큼 떨어져있으면 $p_{m}^{T} p_{n}$가 서로 같은 값을 가지게 되어 아래와 같은 빗살 무늬 모양이 그려집니다.</p>
+<p>
+
+<figure>
+  <img src="/posts/images/sinusodial_pe_dotproduct.png" alt="sinusodial_pe_dotproduct.png" loading="lazy" />
+  <figcaption style="text-align: center; color: gray">sinusodial PE의 내적 행렬</figcaption>
+</figure>
+</p>
+<p>위 그림을 보면 추가적으로 $m$과 $n$이 서로 가까울수록 $p_{m}^{T}p_{n}$의 값이 큰 경향이 있다는 것도 알 수 있습니다. $p_{m}^{T}p_{n}$ 값이 크다면 그만큼 해당 위치의 값 벡터가 가중치를 많이 받을 수 있습니다. 다시 말해, $m$과 $n$이 서로 가깝다면, $p_{m}^{T}p_{n}$가 커지니 $q_{m}^{T}k_{n}$도 커지기 쉬울테고, 결국 $v_{n}$이 더 많은 가중치를 받게 된다는 의미입니다. 이 성질은 상식적으로도 모델의 학습에 도움이 될 듯 합니다. 문장 안에서 서로 가까운 위치에 있는 단어들이 멀리 떨어진 단어들보다는 더 연관이 있을테니까요.</p>
+<h3 id="2-relative-positional-embedding">2. Relative Positional Embedding<a hidden class="anchor" aria-hidden="true" href="#2-relative-positional-embedding">#</a></h3>
+<p>위에서 우리는 Sinusodial PE가 시퀀스 내의 상대적인 위치를 고려할 수 있게 디자인되었다는 사실을 알았습니다. $p_{m+k} = T_{k} p_{m}$를 만족하는 $T_{k}$가 존재하므로, 같은 거리에 대해 PE의 내적이 같은 값을 가지게 되어 모델이 상대적인 위치 관계를 학습하기 쉬워진다는 논리였습니다. 하지만 사실 자세히 따져보면 이 장치는 의도한대로 잘 동작하지 않을 수 있습니다. 수식 $\eqref{1}$에서 Sinusodial PE를 적용한 $q_{m}^{T}k_{n}$ 부분을 자세히 살펴보도록 합시다.</p>
+<p>$$\begin{align}
+q_{m}^{T}k_{n} &amp;= (W_{q}(x_{m} + p_{m}))^{T} W_{k}(x_{n} + p_{n}) \\
+&amp;= x_{m}^{T}W_{q}^{T}W_{k}x_{n} + x_{m}^{T}W_{q}^{T}W_{k}p_{n} + p_{m}^{T}W_{q}^{T}W_{k}x_{n} + \underline{p_{m}^{T}W_{q}^{T}W_{k}p_{n}}\tag{2}\label{2}
+\end{align}$$</p>
+<p>밑줄로 표시된 네번째 항에서 PE가 간접적으로 내적된다는 것을 알 수 있습니다. 만약 $W_{q}^{T}W_{k}$가 $I$거나 이와 비슷하다면 우리가 원하는대로 $m-n$의 값에 따라 비슷한 값을 가질 수 있을 겁니다. 하지만 정말 이렇게 될지는 사실 알 수 없습니다. 학습 단계에서 $W_{q}$와 $W_{k}$는 PE 뿐 아니라 첫번째 항에서 볼 수 있듯이 시퀀스 자체 임베딩($x$)에도 영향받기 때문에, 시퀀스 순서 정보만을 학습하지는 않을 겁니다.</p>
+<p>또한 만약 $p_{m}^{T}W_{q}^{T}W_{k}p_{n}$ 항이 우리가 원하는대로 상대적인 위치 관계를 나타내도록 동작한다고 하더라도 그 이외 항들의 값에 따라 모델이 전체적인 $q_{m}$과 $k_{n}$의 유사도를 어떻게 계산할지 애매합니다. 특히, 2, 3번째 항의 경우 시퀀스 임베딩 벡터와 PE 벡터 사이의 관계를 나타내는데, <a href="https://arxiv.org/abs/2006.15595">이 관계 자체가 크게 의미 없을 수 있습니다</a>. 결론적으로 Sinusodial PE는 의도했던 바와는 다르게, 시퀀스 벡터들 사이의 상대적인 관계를 잘 나타내지 못할 수 있습니다. 아까 모델에게 시퀀스의 상대적인 위치를 학습시키면 여러가지 장점이 있다고 했는데, Sinusodial PE로는 이 장점들을 제대로 활용하기 어려울 수 있어요.</p>
+<p><a href="https://arxiv.org/abs/1803.02155">Relative PE</a>는 시퀀스의 상대적인 위치를 더 잘 학습시키기 위해 고안된 방법입니다. Sinusodial PE와는 다르게 인풋 시퀀스 $x$에 PE를 더해주는 방식이 아니라, $q_{m}$과 $k_{n}$의 유사도를 구하는 과정에 직접 PE를 더해주게 됩니다. Relative PE는 수식 $\eqref{1}$을 변형해 아래와 같이 쿼리, 키 벡터의 유사도를 계산합니다.</p>
+<p>$$
+e_{m, n} = \frac{q_{m}^{T} (k_{n} + a_{m-n})}{\sqrt{d}}\tag{3}\label{3}
+$$</p>
+<p>구글에서는 <a href="https://arxiv.org/abs/1910.10683">T5</a> 모델을 제안할 때 아래와 같이 살짝 변형된 Relative PE를 사용했습니다.</p>
+<p>$$
+e_{m, n} = \frac{q_{m}^{T} k_{n}}{\sqrt{d}} + a_{m-n}\tag{4}\label{4}
+$$</p>
+<p>위 두 방법 모두 $a_{m-n}$라는 학습 가능한 PE 벡터를 유사도 계산 과정 중에 직접 더해줍니다. $a_{m-n}$은 $m-n$, 즉, 쿼리 벡터와 키 벡터의 상대적인 위치 관계에 따라 결정됩니다. 예를 들면, $q_{10}$과 $k_{6}$ 사이의 유사도를 구할 때나, $q_{5}$와 $k_{1}$ 사이의 유사도를 구할 때나, 상대적인 거리가 $4$씩 떨어져있으므로 유사도 계산 과정에서 $a_{4}$라는 같은 벡터를 더해주는 겁니다. Sinusodial PE에서 PE의 내적을 이용해 간접적으로 상대적 위치 관계를 반영했던 것과 달리, 아예 상대적 위치 관계가 같으면 같은 PE를 더해버리는 방식이지요. 덕분에 아까 수식 $\eqref{2}$의 2, 3번째 항처럼 시퀀스 임베딩과 PE 사이의 관계를 나타내는 항이 제거되었습니다. 또한 $W_{q}$와 $W_{k}$는 오직 시퀀스 임베딩 벡터($x$)의 정보를 학습하는데에 집중할 수 있게 되었습니다.</p>
+<p>여기에 더해 Relative PE에서는 $m-n$이 너무 커지거나 너무 작아지지 않도록 제한하는 방법을 사용합니다. $\lvert m-n \rvert$이 $l$보다 크다면 $l$로 고정하는 식입니다. 일정 간격 이상으로 너무 멀리 떨어져있는 벡터들 끼리는 서로 연관이 적을테니 $a_{l}$, 혹은 $a_{-l}$ 이라는 고정된 임베딩 값을 사용해도 괜찮을 것이라는 가정에서 나온 아이디어입니다. 이렇게 하면 우선 학습해야 할 PE가 줄어드니 학습 속도를 높일 수 있고, 학습된 모델이 인풋 시퀀스 길이에 영향을 받지 않게 됩니다. 아까 말했던 Length Generalization 관점에서 유리해지는 것이지요.</p>
+<p>예를 들어, 학습 단계에서 노출되지 않은 매우 긴 길이의 인풋 시퀀스가 모델에 들어왔다고 가정해봅시다. Sinusodial PE는 비록 상대적인 위치 관계를 고려해 디자인되었다고는 하지만, 어쨌든 학습 단계에서 모델이 보지 못했던 새로운 PE 벡터를 인풋 시퀀스에 더해주어야 합니다. 하지만 Relative PE는 $m-n$에 따라서만 PE 값이 정해지고, $\lvert m-n \rvert$이 $l$을 넘을 경우 고정된 PE 벡터를 사용하기 때문에 $2l + 1$개의 학습된 벡터로 어떤 길이의 인풋 시퀀스에도 적용할 수 있습니다.</p>
+<h3 id="3-rotary-positional-embedding">3. Rotary Positional Embedding<a hidden class="anchor" aria-hidden="true" href="#3-rotary-positional-embedding">#</a></h3>
+<p>Rotery PE, 줄여서 <a href="https://arxiv.org/abs/2104.09864">RoPE</a>는 마찬가지로 시퀀스 사이의 상대적인 위치를 고려합니다. 하지만 쿼리, 키 벡터에 임베딩 벡터를 더하는게 아닌, Rotation Matrix를 곱해 회전시키는 방식으로 동작합니다. 즉, 기존 쿼리, 키 벡터를 위치에 따라 서로 다른 각도로 회전시켜 모델이 구분할 수 있도록 하겠다는 논리입니다. 수식으로는 아래와 같이 쿼리와 키 벡터에 $R$이라는 Rotation Matrix를 내적하는 형태가 됩니다.</p>
+<p>$$
+e_{m, n} = \frac{(R_{\theta, m}q_{m})^{T} (R_{\theta, n}k_{n})}{\sqrt{d}}
+$$</p>
+<p>$d$차원의 쿼리, 키 벡터를 회전시키기 위해서는 $d \times d$ 크기의 Rotation Matrix가 필요합니다. 하지만 이건 계산이 꽤 복잡합니다. 그래서 아래와 같은 Sparse 행렬을 이용해 간접적으로 Rotation Matrix를 만듭니다. 우리의 목적은 시퀀스의 순서를 구분하고 모델에게 상대적인 위치를 학습시킬 수 있는 PE를 만드는 것이지, 꼭 쿼리와 키 벡터 전체를 수학적으로 회전시켜야 하는 것은 아니니까요.</p>
+<p>$$
+R_{\theta, m} = \begin{bmatrix}
+\cos(m \theta_{1}) &amp; -\sin(m \theta_{1}) &amp; 0 &amp; 0 &amp; \cdots &amp; 0 &amp; 0 \\
+\sin(m \theta_{1}) &amp; \cos(m \theta_{1}) &amp; 0 &amp; 0 &amp; \cdots &amp; 0 &amp; 0 \\
+0 &amp; 0 &amp; \cos(m \theta_{2}) &amp; -\sin(m \theta_{2}) &amp; \cdots &amp; 0 &amp; 0 \\
+0 &amp; 0 &amp; \sin(m \theta_{2}) &amp; \cos(m \theta_{2}) &amp; \cdots &amp; 0 &amp; 0 \\
+\vdots &amp; \vdots &amp; \vdots &amp; \vdots &amp; \ddots &amp; \vdots &amp; \vdots \\
+0 &amp; 0 &amp; 0 &amp; 0 &amp; \cdots &amp; \cos(m \theta_{d/2}) &amp; -\sin(m \theta_{d/2}) \\
+0 &amp; 0 &amp; 0 &amp; 0 &amp; \cdots &amp; \sin(m \theta_{d/2}) &amp; \cos(m \theta_{d/2}) \\
+\end{bmatrix}
+$$</p>
+<p>아까 Sinusodial PE에서 $T_{k}$와 모양이 비슷합니다. 2차원씩 나누어서 2차원 Rotation Matrix를 대각에 따라 배치한 것이라고 생각하면 됩니다. 쿼리, 키 벡터 전체를 회전시키는 게 아니라, 2차원씩 나누어서 각각 회전시키게 됩니다. $\theta$는 회전시키는 각도를 의미하는데, 차원에 따라 다른 각도를 사용합니다. 논문에서는 아래와 같은 $\theta$를 제안하였습니다.</p>
+<p>$$\theta_{i} = 10000^{-2(i-1)/d}$$</p>
+<p>$R_{\theta, m}$를 이용하면 벡터를 2차원씩 나누어 $\theta m$만큼 회전시키게 됩니다. 따라서 위치에 $m$에 따라 쿼리, 키 벡터가 회전하는 각도가 달라집니다. 모델은 학습 과정에서 벡터가 회전된 정도를 통해 위치 정보를 알 수 있게 될 겁니다.</p>
+<p>하지만 이게 어떻게 시퀀스 사이의 상대적인 위치를 나타내는지는 바로 와닿지 않습니다. 결국은 쿼리, 키 벡터에 각각 그 위치에 맞는 고정된 $R$을 곱하는 것인데, Relative보다는 Absolute PE에 더 가까운 느낌입니다. 하지만 아까와 마찬가지로 <a href="https://ko.wikipedia.org/wiki/%EC%82%BC%EA%B0%81%ED%95%A8%EC%88%98%EC%9D%98_%EB%8D%A7%EC%85%88%EC%A0%95%EB%A6%AC">삼각함수의 덧셈정리</a>를 이용하면 아래와 같은 성질이 있다는 것을 보일 수 있습니다. $R_{\theta, m}$에서 1, 2번째 행과 열을 잘라 만든 $2 \times 2$ 행렬을 $R_{\theta, m}^{0:2}$라고 해보겠습니다.</p>
+<p>$$\begin{align}
+R_{\theta, m}^{0:2, T} R_{\theta, n}^{0:2} &amp;= \begin{bmatrix}
+\cos(m \theta) &amp; \sin(m \theta) \\
+-\sin(m \theta) &amp; \cos(m \theta)
+\end{bmatrix} \begin{bmatrix}
+\cos(n \theta) &amp; -\sin(n \theta) \\
+\sin(n \theta) &amp; \cos(n \theta)
+\end{bmatrix} \\
+&amp;= \begin{bmatrix}
+\cos(m\theta)\cos(n\theta) + \sin(m\theta)\sin(n\theta) &amp; \sin(m\theta)\cos(n\theta) - \cos(m\theta)\sin(n\theta) \\ - \sin(m\theta) \cos(n\theta) + \cos(m\theta)\sin(n\theta) &amp; \cos(m\theta)cos(n\theta) + \sin(m\theta)\sin(n\theta)
+\end{bmatrix} \\
+&amp;= \begin{bmatrix}
+\cos(\theta(m-n)) &amp; \sin(\theta(m-n)) \\ - \sin(\theta(m-n)) &amp; \cos(\theta(m-n))
+\end{bmatrix} \\
+&amp;= R_{\theta, m-n}^{0:2}
+\end{align}$$</p>
+<p>전체 $R$에서 첫 2개 Column과 Row인 $2 \times 2$ 모양에 대해서만 계산했지만, 어차피 전체 $R$은 이 모양이 반복되는 구조이니 결과는 같습니다. 그러니까 Sinusodial PE때와 마찬가지로 시퀀스 벡터들 사이의 상대적인 위치 관계 $m-n$에 따라서 PE의 내적이 같은 값을 가지는 구조가 됩니다. 하지만 이번에는 Sinusodial PE 때와는 달리, 이 모양이 아래와 같이 직접적으로 유사도 계산에 등장하게 됩니다.</p>
+<p>$$\begin{align}
+e_{m, n} &amp;= \frac{(R_{\theta, m}q_{m})^{T} (R_{\theta, n}k_{n})}{\sqrt{d}} \\
+&amp;= \frac{q_{m}^{T} R_{\theta, m}^{T} R_{\theta, n} k_{n}}{\sqrt{d}}
+\end{align}$$</p>
+<p>$m-n$이 같으면 결국 $q$와 $k$의 유사도 계산 과정에 같은 위치 정보가 들어가게 됩니다. 시퀀스, 혹은 Attention Matrix에 PE를 더하는 형태가 아닌, 곱하는 형태이기 때문에 아까와 다르게 위와 같은 모양이 유도됩니다. <a href="https://arxiv.org/abs/2104.09864">논문</a>에서는 기존에 제안된 방법들과 같이 PE를 더하는 형태는 Self-Attention 계산 과정 중 수식 $\eqref{2}$, $\eqref{3}$, $\eqref{4}$와 같이 전체 항의 모양을 변화시키지만, RoPE와 같이 곱하는 형태로 PE를 적용하면 식의 모양을 바꾸지 않고 자연스럽게 위치 정보를 전달할 수 있다고 설명하고 있습니다.</p>
+<h3 id="4-no-positional-embedding">4. No Positional Embedding<a hidden class="anchor" aria-hidden="true" href="#4-no-positional-embedding">#</a></h3>
+<p>NoPE는 말 그대로 PE를 사용하지 않는다는 의미입니다. 하지만 처음에 분명 Self-Attention 구조는 Permutation Invariance라는 특성을 가지고 있어서 PE 없이는 시퀀스의 순서를 파악하지 못한다고 했었지요. 그러니 PE를 사용하지 않는다면 당연히 모델의 성능이 떨어질 겁니다. 하지만 Attention Mask를 사용하는 Transformer Decoder 구조에서는 이 <a href="https://arxiv.org/abs/1908.11775">Permutation Invariance 특성이 사라지게 됩니다</a>. 아래 그림과 같습니다.</p>
+<p>
+
+<figure>
+  <img src="/posts/images/transformer_decoder.png" alt="transformer_decoder.png" loading="lazy" />
+  <figcaption style="text-align: center; color: gray">Transformer 디코더의 어텐션</figcaption>
+</figure>
+</p>
+<p>Transformer Decoder 구조에서는 Mask를 이용해 계산되는 시퀀스의 앞 부분만 참조하게 됩니다. 즉, $h_{T}$를 계산할 때에는, $x_{1}, x_{2}, \cdots, x_{T}$ 사이의 유사도만 계산하고, $x_{T+1}$과 그 이후 벡터는 고려하지 않습니다. 직관적으로 생각해보아도, 이 구조에서는 시퀀스의 순서가 바뀌면 Self-Attention 계산 결과가 달라진다는 걸 알 수 있습니다. 따라서 PE를 사용하지 않더라도 모델이 위치 관계를 간접적으로 유추해낼 수 있다는 것이 NoPE의 설명입니다.</p>
+<p>Transformer Decoder 구조에서 PE를 쓰지 않더라도 모델이 위치 관계를 학습한다는 이야기는 <a href="https://arxiv.org/abs/1905.04226">여러</a> <a href="https://arxiv.org/abs/2203.16634">논문</a>에서 실험적으로 관찰이 되었습니다. 그리고 <a href="https://arxiv.org/abs/2305.19466">이 논문</a>에서는 Transformer Decoder Layer가 2개 이상인 구조에서 모델이 시퀀스의 절대적인 위치와 상대적인 위치를 모두 알아낼 수 있는 해가 존재한다는 것을 정리했습니다.</p>
+<h3 id="5-마무리">5. 마무리<a hidden class="anchor" aria-hidden="true" href="#5-마무리">#</a></h3>
+<p>이렇게 여러 PE 방법들의 논리를 살펴보았습니다. 이 외에도 <a href="https://arxiv.org/abs/2108.12409">여러</a> <a href="https://arxiv.org/abs/1809.04281">가지</a> <a href="https://arxiv.org/abs/1901.02860">논문들</a>에서 다양한 PE 방법들을 제시하고 있고, 기본적으로 이루고자 하는 목적은 같습니다. 논리도 비슷해요.</p>
+<p>하지만 논리야 어쨌든 실전에서는 어떤 방법을 사용해야 가장 좋은 모델을 얻을 수 있을지, 즉, 성능이 중요할 겁니다. 일반적으로 Sinusodial PE는 상대적인 위치 관계를 잘 파악하지 못하지만, 고정된 값을 더하는 만큼 구현이 간단하여 계산 시간이 빠르고, Relative PE와 RoPE는 반대로 성능이 좋으나 추가적인 연산이 필요하므로 속도가 조금 느린 반면, NoPE는 속도도 빠르고, Autoregressive 구조일 경우에 명시적인 PE를 사용하는 것과 동등하거나 그 이상의 성능이 나온다는 연구 결과들이 있습니다.</p>
+<p>성능에 대한 자세한 내용들은 이 글에서 다룬 논문들을 포함해 여러 논문들에 다양한 벤치마크와 성능 지표들이 정리되어 있으니 참고하면 되겠습니다. 여기서는 일부러 성능 얘기를 하지 않았었는데, 이 글의 목적이 &ldquo;어떤 PE가 가장 좋은가?&ldquo;를 알아보기보다는 &ldquo;PE가 어떤 목적과 논리를 가지고 설계, 제안되었는가?&ldquo;를 정리하고 싶었기 때문입니다. Transformer 구조와 PE는 활발한 연구가 이루어지고 있는 분야이기 때문에, 앞으로도 계속 새로운 기법들이 제안될 겁니다. 이 글에서 소개한 기법들은 곧 사용되지 않을 수도 있어요. 하지만 PE의 기본적인 논리를 알아둔다면 앞으로 제안될 방법론들을 이해하고 적용하는 데에 분명 도움이 될 겁니다.</p>
+<h3 id="참고-자료">참고 자료<a hidden class="anchor" aria-hidden="true" href="#참고-자료">#</a></h3>
+<ol>
+<li>Vaswani et al. <a href="https://arxiv.org/abs/1706.03762">&ldquo;Attention Is All You Need&rdquo;</a></li>
+<li>Amirhossein Kazemnejad <a href="https://kazemnejad.com/blog/transformer_architecture_positional_encoding/">&ldquo;Transformer Architecture: The Positional Encoding&rdquo;</a></li>
+<li>Shaw et al. <a href="https://arxiv.org/abs/1803.02155">&ldquo;Self-Attention with Relative Position Representations&rdquo;</a></li>
+<li>Su el al. <a href="https://arxiv.org/abs/2104.09864">&ldquo;RoFormer: Enhanced Transformer with Rotary Position Embedding&rdquo;</a></li>
+<li>Kazemnejad et al. <a href="https://arxiv.org/abs/2305.19466">&ldquo;The Impact of Positional Encoding on Length Generalization in Transformers&rdquo;</a></li>
+<li>Ke et al. <a href="https://arxiv.org/abs/2006.15595">&ldquo;Rethinking Positional Encoding in Language Pre-training&rdquo;</a></li>
+<li>Raffel et al. <a href="https://arxiv.org/abs/1910.10683">&ldquo;Exploring the Limits of Transfer Learning with a Unified Text-to-Text Transformer&rdquo;</a></li>
+<li>Haviv et al. <a href="https://arxiv.org/abs/2203.16634">&ldquo;Transformer Language Models without Positional Encodings Still Learn Positional Information&rdquo;</a></li>
+<li>Tsai et al. <a href="https://arxiv.org/abs/1908.11775">&ldquo;Transformer Dissection: A Unified Understanding of Transformer&rsquo;s Attention via the Lens of Kernel&rdquo;</a></li>
+<li>Irie et al. <a href="https://arxiv.org/abs/1905.04226">&ldquo;Language Modeling with Deep Transformers&rdquo;</a></li>
+<li>Nikolas Adaloglou <a href="https://theaisummer.com/positional-embeddings/">&ldquo;How Positional Embeddings work in Self-Attention&rdquo;</a></li>
+</ol>
+
+
+  </div>
+
+  <footer class="post-footer">
+    <ul class="post-tags">
+    </ul>
+  </footer>
+</article>
+    </main>
+    
+<footer class="footer">
+    <span>&copy; 2024 <a href="http://repun.github.io/">MLBlog</a></span>
+    <span>
+        Powered by
+        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
+        <a href="https://github.com/adityatelange/hugo-PaperMod/" rel="noopener" target="_blank">PaperMod</a>
+    </span>
+</footer>
+<a href="#top" aria-label="go to top" title="Go to Top (Alt + G)" class="top-link" id="top-link" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentColor">
+        <path d="M12 6H0l6-6z" />
+    </svg>
+</a>
+
+<script>
+    let menu = document.getElementById('menu')
+    if (menu) {
+        menu.scrollLeft = localStorage.getItem("menu-scroll-position");
+        menu.onscroll = function () {
+            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
+        }
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+            var id = this.getAttribute("href").substr(1);
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
+                    behavior: "smooth"
+                });
+            } else {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
+            }
+            if (id === "top") {
+                history.replaceState(null, null, " ");
+            } else {
+                history.pushState(null, null, `#${id}`);
+            }
+        });
+    });
+
+</script>
+<script>
+    var mybutton = document.getElementById("top-link");
+    window.onscroll = function () {
+        if (document.body.scrollTop > 800 || document.documentElement.scrollTop > 800) {
+            mybutton.style.visibility = "visible";
+            mybutton.style.opacity = "1";
+        } else {
+            mybutton.style.visibility = "hidden";
+            mybutton.style.opacity = "0";
+        }
+    };
+
+</script>
+<script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+        if (document.body.className.includes("dark")) {
+            document.body.classList.remove('dark');
+            localStorage.setItem("pref-theme", 'light');
+        } else {
+            document.body.classList.add('dark');
+            localStorage.setItem("pref-theme", 'dark');
+        }
+    })
+
+</script>
+</body>
+
+</html>

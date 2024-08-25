@@ -5,7 +5,17 @@
     <link>http://repun.github.io/posts/</link>
     <description>Recent content in Posts on MLBlog</description>
     <generator>Hugo -- gohugo.io</generator>
-    <lastBuildDate>Sun, 16 Oct 2022 20:47:24 +0900</lastBuildDate><atom:link href="http://repun.github.io/posts/index.xml" rel="self" type="application/rss+xml" />
+    <lastBuildDate>Wed, 21 Feb 2024 09:52:08 +0900</lastBuildDate><atom:link href="http://repun.github.io/posts/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Transformer에 사용되는 Positional Embedding</title>
+      <link>http://repun.github.io/posts/positional_embedding/</link>
+      <pubDate>Wed, 21 Feb 2024 09:52:08 +0900</pubDate>
+      
+      <guid>http://repun.github.io/posts/positional_embedding/</guid>
+      <description>이번에는 Transformer 구조에서 어떻게 인풋 시퀀스의 순서 정보를 받아들이는지에 대한 이야기를 해보도록 하겠습니다. Transformer에 사용되는 Self-Attention은 구조적으로 인풋 시퀀스의 순서를 구분하지 못합니다. 그래서 순서를 구분하기 위한 목적으로 시퀀스 각 벡터의 위치 정보를 넣은 임베딩 벡터를 사용하게 되는데 이걸 Positional Embedding(PE)이라고 부릅니다. 이 글에서는 이런 PE 기법들의 목적과 논리에 대해 정리해보도록 할게요. PE가 모델 내에서 무슨 역할을 어떻게 하는지, 어떤 논리와 이유를 가지고 디자인 되었는지를 이해하는데 도움 된다면 좋겠습니다.
+Transformer에 사용되는 Self-Attention에 대한 이야기부터 시작해보도록 합시다.</description>
+    </item>
+    
     <item>
       <title>CTC 디코딩을 위한 Prefix Beam Search</title>
       <link>http://repun.github.io/posts/prefix_beam_search/</link>
