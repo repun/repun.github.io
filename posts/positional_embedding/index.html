@@ -5,7 +5,7 @@
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <meta name="robots" content="index, follow">
-<title>Transformer에 사용되는 Positional Embedding | MLBlog</title>
+<title>Transformer에 사용되는 Positional Embedding | Repun&#39;s Blog</title>
 <meta name="keywords" content="">
 <meta name="description" content="이번에는 Transformer 구조에서 어떻게 인풋 시퀀스의 순서 정보를 받아들이는지에 대한 이야기를 해보도록 하겠습니다. Transformer에 사용되는 Self-Attention은 구조적으로 인풋 시퀀스의 순서를 구분하지 못합니다. 그래서 순서를 구분하기 위한 목적으로 시퀀스 각 벡터의 위치 정보를 넣은 임베딩 벡터를 사용하게 되는데 이걸 Positional Embedding(PE)이라고 부릅니다. 이 글에서는 이런 PE 기법들의 목적과 논리에 대해 정리해보도록 할게요. PE가 모델 내에서 무슨 역할을 어떻게 하는지, 어떤 논리와 이유를 가지고 디자인 되었는지를 이해하는데 도움 된다면 좋겠습니다.
 Transformer에 사용되는 Self-Attention에 대한 이야기부터 시작해보도록 합시다.">
@@ -122,7 +122,7 @@ Transformer에 사용되는 Self-Attention에 대한 이야기부터 시작해�
   },
   "publisher": {
     "@type": "Organization",
-    "name": "MLBlog",
+    "name": "Repun's Blog",
     "logo": {
       "@type": "ImageObject",
       "url": "http://repun.github.io/favicon.ico"
@@ -147,7 +147,7 @@ Transformer에 사용되는 Self-Attention에 대한 이야기부터 시작해�
 <header class="header">
     <nav class="nav">
         <div class="logo">
-            <a href="http://repun.github.io/" accesskey="h" title="MLBlog (Alt + H)">MLBlog</a>
+            <a href="http://repun.github.io/" accesskey="h" title="Repun&#39;s Blog (Alt + H)">Repun&#39;s Blog</a>
             <div class="logo-switches">
                 <button id="theme-toggle" accesskey="t" title="(Alt + T)">
                     <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="18" viewBox="0 0 24 24"
@@ -422,7 +422,7 @@ e_{m, n} &amp;= \frac{(R_{\theta, m}q_{m})^{T} (R_{\theta, n}k_{n})}{\sqrt{d}} \
     </main>
     
 <footer class="footer">
-    <span>&copy; 2024 <a href="http://repun.github.io/">MLBlog</a></span>
+    <span>&copy; 2024 <a href="http://repun.github.io/">Repun&#39;s Blog</a></span>
     <span>
         Powered by
         <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
